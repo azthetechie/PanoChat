@@ -43,11 +43,13 @@
 - WebSocket real-time broadcasts (message:new, :hidden, :unhidden, :deleted) ✅
 - Profile page (name, avatar, password change, reset-link request) ✅
 - Admin Branding tab (logo + hero image + copy + live preview) ✅
+- **Unread counters** per channel (sidebar badge; auto-mark-read on open/focus/send) ✅
+- **Mobile-friendly layout** (off-canvas sidebar drawer + hamburger; admin tabs horizontal-scroll; responsive headers) ✅
 - Swiss Brutalist UI (Bricolage Grotesque + Manrope, #FF5A00 signal, rounded-none) ✅
 - Docker: Dockerfile.backend, Dockerfile.frontend (nginx with WS proxy), docker-compose.yml, .env.example ✅
 - README-SELFHOST.md with first-login + production tips ✅
-- Backend tests: 50/50 pytest passing ✅
-- Frontend E2E: 27/27 Playwright flows passing ✅
+- Backend tests: 59/59 pytest passing ✅
+- Frontend E2E: comprehensive Playwright coverage ✅
 
 ### Not implemented (deferred)
 - P1: SMTP/SES email delivery for password reset (currently logs link to backend stdout)
