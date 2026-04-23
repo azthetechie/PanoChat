@@ -1,0 +1,121 @@
+{
+  "theme": "light",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "vibe": "Objective, architectural, high-energy, functional. A distinctive departure from soft SaaS tools.",
+  "colors": {
+    "background": {
+      "base": "#FFFFFF",
+      "sidebar": "#F4F4F5",
+      "surface": "#FAFAFA",
+      "surface_hover": "#F0F0F0",
+      "modal_overlay": "rgba(10, 10, 10, 0.4)"
+    },
+    "text": {
+      "primary": "#0A0A0A",
+      "secondary": "#52525B",
+      "tertiary": "#A1A1AA",
+      "inverse": "#FFFFFF"
+    },
+    "brand": {
+      "primary": "#FF5A00",
+      "primary_hover": "#E04F00",
+      "primary_active": "#C24400"
+    },
+    "border": {
+      "default": "#E4E4E7",
+      "strong": "#18181B",
+      "focus": "#FF5A00"
+    },
+    "status": {
+      "online": "#16A34A",
+      "offline": "#A1A1AA",
+      "error": "#DC2626",
+      "warning": "#D97706"
+    }
+  },
+  "typography": {
+    "heading_font": "Cabinet Grotesk, sans-serif",
+    "body_font": "Satoshi, sans-serif",
+    "mono_font": "JetBrains Mono, monospace",
+    "scales": {
+      "h1": "text-4xl md:text-5xl font-black tracking-tight",
+      "h2": "text-2xl md:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-bold tracking-tight",
+      "body": "text-base font-medium leading-relaxed",
+      "small": "text-sm font-medium",
+      "caption": "text-xs font-bold uppercase tracking-widest"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Architectural grid. No wasted space, but elements are clearly delineated by sharp borders rather than massive whitespace padding.",
+    "container_padding": "p-6 md:p-8",
+    "grid_gap": "gap-px",
+    "border_radius": "rounded-none",
+    "borders": "1px solid border-default. Use border-collapse patterns where applicable."
+  },
+  "components": {
+    "button": {
+      "primary": "bg-primary text-white font-bold rounded-none px-6 py-3 hover:bg-primary_hover transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-primary",
+      "secondary": "bg-transparent text-primary border border-strong font-bold rounded-none px-6 py-3 hover:bg-surface transition-colors",
+      "ghost": "bg-transparent text-secondary font-bold rounded-none px-4 py-2 hover:bg-surface hover:text-primary transition-colors"
+    },
+    "input": {
+      "default": "border border-default rounded-none px-4 py-3 text-primary bg-white focus:outline-none focus:border-strong focus:ring-1 focus:ring-strong transition-all placeholder:text-tertiary",
+      "composer": "border-t border-default bg-white p-4 focus-within:border-strong transition-colors"
+    },
+    "avatar": {
+      "style": "rounded-none border border-default object-cover",
+      "sizes": {
+        "sm": "w-8 h-8",
+        "md": "w-10 h-10",
+        "lg": "w-16 h-16"
+      }
+    },
+    "chat_message": {
+      "style": "group flex gap-4 py-2 px-4 hover:bg-surface transition-colors",
+      "header": "flex items-baseline gap-2",
+      "author": "font-bold text-primary text-sm font-heading",
+      "timestamp": "text-xs text-tertiary",
+      "content": "text-primary text-base leading-relaxed mt-1"
+    },
+    "sidebar": {
+      "container": "w-64 bg-sidebar border-r border-default flex flex-col h-full",
+      "channel_active": "bg-surface border-l-4 border-l-primary text-primary font-bold",
+      "channel_inactive": "text-secondary hover:bg-surface hover:text-primary border-l-4 border-l-transparent transition-colors"
+    },
+    "admin_table": {
+      "container": "w-full border-collapse border border-default",
+      "header": "bg-sidebar text-left text-xs font-bold uppercase tracking-widest text-secondary p-4 border-b border-default",
+      "row": "border-b border-default hover:bg-surface transition-colors",
+      "cell": "p-4 text-sm text-primary"
+    },
+    "gif_picker": {
+      "modal": "fixed inset-0 bg-modal_overlay backdrop-blur-sm flex items-center justify-center z-50",
+      "content": "bg-white border border-strong w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh]",
+      "grid": "grid grid-cols-2 gap-2 p-4 overflow-y-auto"
+    }
+  },
+  "motion": {
+    "philosophy": "Snappy, mechanical, instantaneous. No soft bounces or elastic easing.",
+    "transitions": "transition-all duration-150 ease-in-out"
+  },
+  "assets": {
+    "icons": {
+      "library": "@phosphor-icons/react",
+      "style": "weight='bold'"
+    },
+    "images": {
+      "login_hero": "https://images.unsplash.com/photo-1770321428595-9cd15b5a46c3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGdlb21ldHJpYyUyMHNoYXBlcyUyMHdoaXRlJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzY5MDMzNDF8MA&ixlib=rb-4.1.0&q=85",
+      "empty_state_chat": "https://images.unsplash.com/photo-1770520212551-af2140a95a5d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMGdlb21ldHJpYyUyMHNoYXBlcyUyMHdoaXRlJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzY5MDMzNDF8MA&ixlib=rb-4.1.0&q=85",
+      "avatar_placeholder": "https://images.unsplash.com/photo-1591222380707-dcde425cc8ac?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwzfHxtaW5pbWFsaXN0JTIwb2ZmaWNlJTIwZGVzayUyMHdvcmtzcGFjZXxlbnwwfHx8fDE3NzY5MDMzNDF8MA&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Use pure HTML/Tailwind for structural components to enforce the strict 0px border-radius and high-contrast aesthetic.",
+    "Use Shadcn UI for complex interactive components (Dialogs, Dropdowns, Toast) but STRIP all rounded corners (rounded-none) and subtle shadows, replacing them with hard 1px borders.",
+    "Do NOT use standard chat bubbles. Messages should be text blocks aligned to the square avatar, with a subtle hover state for the entire message row.",
+    "Admin Dashboard should use a strict, dense table layout with hard borders (border-collapse), completely ignoring the typical soft 'SaaS Card' look.",
+    "For the composer, use a large textarea with clear, bold Phosphor Icons for attachments (images/gifs/memes).",
+    "Every interactive element MUST include a data-testid attribute formatted as kebab-case, describing its role."
+  ]
+}
