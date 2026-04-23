@@ -59,6 +59,7 @@
 - Backend tests: **117/117** pytest passing ✅
 - Frontend E2E: comprehensive Playwright coverage (threads, quiet hours, presence, push) ✅
 - **Web-push notifications (survives tab close)** — auto-generated VAPID keys persisted in `config` collection; Service Worker at `/sw.js` handling `push` + `notificationclick`; `/api/push/{vapid-public-key,subscribe,unsubscribe,test}` endpoints; pushes fire for every new channel/DM message to recipients who are NOT currently connected via WS (online users already get in-app notification) ✅ (Feb 2026)
+- **PWA — installable app** — dynamic branded manifest at `/api/manifest.webmanifest` (name/short_name/description pulled from live branding; #FF5A00 signal as theme color); default icons (192/512/512-maskable) served from frontend; apple-touch-icon + theme-color meta; `<InstallAppButton />` in chat header captures `beforeinstallprompt` and offers a one-click install (dismissible for 7 days) ✅ (Feb 2026)
 
 ### Not implemented (deferred)
 - P1: SMTP/SES email delivery for password reset (currently logs link to backend stdout)
