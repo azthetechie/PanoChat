@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration-4 testing (DMs + mentions + reactions + desktop notifications UI). Backend: 17/17 new iter4 tests + 59/59 regression (iter-1/2/3) = 76/76 PASSING. Frontend: DM flow PASS (new-dm-button, new-dm-modal, new-dm-search, new-dm-user-<email>, dm-item-<email>, send message, sidebar shows other_user_name). Mentions PASS (composer-textarea: typing `@` opens mention-popover with mention-option-<email>; selecting inserts `@Name ` and the mentions list is recorded). Reactions PASS (open-reaction-picker-<id> button visible on hover, picker shows 8 emoji, clicking pick-reaction-<emoji>-<id> renders reaction-<emoji>-<id> chip, clicking chip again toggles it off). Desktop notifications UI: toggle-notifications-button NOT RENDERED on /profile — `NotificationsSection` is defined in ProfilePage.jsx (line 74) but is never included in the page's main render block (line 41-51 only mounts AccountInfo, PasswordChange, PasswordResetRequest). This is a real frontend bug.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProfilePage", "issue": "Desktop notifications section is not mounted. NotificationsSection() is defined but never referenced in ProfilePage's <main>; toggle-notifications-button is therefore absent from the DOM.", "selector": "[data-testid=\"toggle-notifications-button\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Chat (DM) — message rendering", "issues": ["When sending '...DM@ hello' the literal `@` is rendered inline against the previous word with no space (cosmetic; matches input). Mention popover correctly does NOT trigger when @ is preceded by a non-space, per regex `(?:^|\\s)@`. No fix required."]},
+      {"screen": "Chat (desktop)", "issues": ["Pre-existing from prior iterations: Emergent preview badge (bottom-right) overlaps the Send button hitbox. Carryover."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter4.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_unread.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_iter4.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix /app/frontend/src/pages/ProfilePage.jsx — mount <NotificationsSection /> inside the <main> block (e.g., between AccountInfo and PasswordChange, or after PasswordResetRequest). The component is fully implemented (lines 74-150) but never rendered."
+  ],
+  "critical_code_review_comments": [
+    "ProfilePage: dead code path — NotificationsSection is implemented but unmounted. Either render it or delete it. (Action item above.)",
+    "routes/dms.py uses channel name `dm:<a>:<b>` as the uniqueness key but does NOT add a unique index on (name,type). Concurrent POST /api/dms by both participants could race and create duplicate DM docs. Consider a unique index on `channels.name` (already present from iter-1?) — verify it covers DM names.",
+    "routes/messages.py react endpoint reuses _assert_channel_access which already enforces archived/private membership — good. Reaction broadcast payload includes only `reactions` map (no full message), which is intentional and lighter; FE must already merge by message_id (ChatPage subscribes to message:reactions per spec).",
+    "models.MessagePublic.reactions is typed `dict` (untyped value). Consider `Dict[str, List[str]]` for OpenAPI clarity.",
+    "DM unread count uses string compare on ISO timestamps (same pattern as iter-3 unread). Consistent across the codebase, so safe — but flagged again as a future migration target to native datetime.",
+    "GET /api/dms issues N+1 queries (last message + unread per DM). Acceptable for now; aggregate pipeline would be cleaner at scale.",
+    "Self-mention filter in messages.post_message uses set comprehension which also de-duplicates mentions — good.",
+    "AdminPage.jsx still ~1.2k lines (carryover from iter-3); ProfilePage now ~350 lines — both could be split."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter4.py (new — 17 tests)"
+  ],
+  "success_rate": {"backend": "100% (76/76: 17 new iter4 + 50 iter-1/2 regression + 9 iter-3 unread)", "frontend": "~85% (DM flow ✓, mention popover ✓, mention insert ✓, reactions add+toggle ✓, sidebar DM section + preview ✓; toggle-notifications-button ✗ — not rendered)"},
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 (unchanged). Admin display name restored to 'Operations Admin', avatar_url cleared.",
+  "seed_data_creation": "During backend tests created (and then auto-cleaned via fixtures): users with prefixes iter4a/iter4b/iter4c/iter4dead, ephemeral channels (mentest-*, selfmen-*, reacttest-*, reactpriv-*, test-pub-*, test-priv-*, brand_user_*, reset_*). For frontend testing created user fe_iter4_884e0d@example.com — DELETED at end of run. DM channels with that user remain orphaned in the DB (no API to list/delete DMs of deleted users); harmless but worth noting.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter-4 backend is rock-solid. The single open frontend bug is purely a JSX wiring issue in /app/frontend/src/pages/ProfilePage.jsx — render the existing NotificationsSection component inside <main>. After that, re-run frontend test from this iteration's script (DM + mention + reactions still PASS today). For mention-highlight/mentions-me-badge verification you need the mentioned user's session to view the message — I did not log into bob in the browser (would clobber admin cookies); a Playwright incognito context or a separate request-based check is the cleanest path.",
+  "rca of the issue": "ProfilePage.jsx defines NotificationsSection() at line 74 with the toggle-notifications-button data-testid (line 114) and the proper Notification.permission state machine, but the parent component's JSX (lines 41-51) does not include <NotificationsSection />. Reproduction: open /profile as any user → expected 'Desktop notifications' card with 'Enable'/'Unsupported' button → actual: only Identity, Security, Recovery cards. Mitigation (2-line fix): inside <main className=\"...space-y-8 md:space-y-10\"> add `<NotificationsSection />`."
+}

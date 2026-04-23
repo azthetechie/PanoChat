@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from auth import get_current_admin, get_current_user
 from db import get_db
-from models import MessageCreateRequest, MessagePublic, new_id, now_iso
+from models import MessageCreateRequest, MessagePublic, ReactionRequest, new_id, now_iso
 from ws_manager import manager
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -75,6 +75,8 @@ async def post_message(
         "avatar_url": user.get("avatar_url"),
         "content": payload.content,
         "attachments": [a.model_dump() for a in payload.attachments],
+        "mentions": list({m for m in payload.mentions if m and m != user["id"]}),
+        "reactions": {},
         "hidden": False,
         "hidden_by": None,
         "hidden_at": None,
@@ -85,6 +87,36 @@ async def post_message(
     # Broadcast
     await manager.broadcast_channel(channel_id, {"type": "message:new", "message": doc})
     return MessagePublic(**doc)
+
+
+@router.post("/{message_id}/react", response_model=MessagePublic)
+async def react(
+    message_id: str, payload: ReactionRequest, user: dict = Depends(get_current_user)
+):
+    db = get_db()
+    msg = await db.messages.find_one({"id": message_id}, {"_id": 0})
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    # Ensure user has access to the channel
+    await _assert_channel_access(msg["channel_id"], user)
+
+    reactions = msg.get("reactions") or {}
+    users_for_emoji = list(reactions.get(payload.emoji, []))
+    if user["id"] in users_for_emoji:
+        users_for_emoji.remove(user["id"])
+    else:
+        users_for_emoji.append(user["id"])
+    if users_for_emoji:
+        reactions[payload.emoji] = users_for_emoji
+    else:
+        reactions.pop(payload.emoji, None)
+
+    await db.messages.update_one({"id": message_id}, {"$set": {"reactions": reactions}})
+    msg["reactions"] = reactions
+    await manager.broadcast_channel(
+        msg["channel_id"], {"type": "message:reactions", "message_id": message_id, "reactions": reactions}
+    )
+    return MessagePublic(**msg)
 
 
 @router.post("/{message_id}/hide", response_model=MessagePublic)

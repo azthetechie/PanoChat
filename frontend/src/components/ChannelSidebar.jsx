@@ -2,13 +2,27 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useBranding, resolveAssetUrl } from "../context/BrandingContext";
-import { Hash, Lock, Archive, Plus, Shield, LogOut, User, UserCog, X } from "lucide-react";
+import {
+    Hash,
+    Lock,
+    Archive,
+    Plus,
+    Shield,
+    LogOut,
+    User,
+    UserCog,
+    X,
+    MessageSquarePlus,
+} from "lucide-react";
 
 export default function ChannelSidebar({
     channels,
+    dms = [],
     activeChannelId,
     onSelectChannel,
+    onSelectDm,
     onCreateChannel,
+    onNewDm,
     canCreate = false,
     unreadCounts = {},
     onClose,
@@ -59,23 +73,24 @@ export default function ChannelSidebar({
                 )}
             </div>
 
-            <div className="flex items-center justify-between px-5 pt-5 pb-2">
-                <div className="ticker-label">Channels</div>
-                {canCreate && (
-                    <button
-                        className="p-1 border border-border hover:border-ink transition-colors"
-                        onClick={onCreateChannel}
-                        data-testid="create-channel-button"
-                        title="New channel"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                    </button>
-                )}
-            </div>
-
             <nav className="flex-1 overflow-y-auto" data-testid="channel-list">
+                {/* Channels */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-2">
+                    <div className="ticker-label">Channels</div>
+                    {canCreate && (
+                        <button
+                            className="p-1 border border-border hover:border-ink transition-colors"
+                            onClick={onCreateChannel}
+                            data-testid="create-channel-button"
+                            title="New channel"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                </div>
+
                 {channels.length === 0 && (
-                    <div className="px-5 py-6 text-sm text-muted-foreground" data-testid="channels-empty">
+                    <div className="px-5 py-3 text-sm text-muted-foreground" data-testid="channels-empty">
                         No channels yet.
                     </div>
                 )}
@@ -106,8 +121,61 @@ export default function ChannelSidebar({
                                     {unread > 99 ? "99+" : unread}
                                 </span>
                             )}
-                            {c.archived && unread === 0 && (
-                                <span className="ticker-label text-muted-foreground">archived</span>
+                        </button>
+                    );
+                })}
+
+                {/* Direct Messages */}
+                <div className="flex items-center justify-between px-5 pt-6 pb-2">
+                    <div className="ticker-label">Direct Messages</div>
+                    <button
+                        className="p-1 border border-border hover:border-ink transition-colors"
+                        onClick={onNewDm}
+                        data-testid="new-dm-button"
+                        title="New direct message"
+                    >
+                        <MessageSquarePlus className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+                {dms.length === 0 && (
+                    <div className="px-5 py-3 text-sm text-muted-foreground" data-testid="dms-empty">
+                        No conversations yet.
+                    </div>
+                )}
+                {dms.map((d) => {
+                    const active = d.id === activeChannelId;
+                    const unread = d.unread || 0;
+                    const initials = (d.other_user_name || d.other_user_email || "?")
+                        .split(" ")
+                        .map((p) => p[0])
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase();
+                    return (
+                        <button
+                            key={d.id}
+                            onClick={() => onSelectDm(d)}
+                            className={`w-full text-left px-5 py-2.5 flex items-center gap-3 border-l-4 transition-colors ${
+                                active
+                                    ? "bg-white border-l-signal text-ink font-bold"
+                                    : "border-l-transparent text-muted-foreground hover:bg-white/60 hover:text-ink"
+                            }`}
+                            data-testid={`dm-item-${d.other_user_email}`}
+                        >
+                            <div className="w-7 h-7 bg-ink text-white flex items-center justify-center font-heading font-bold text-xs shrink-0">
+                                {initials}
+                            </div>
+                            <span className={`truncate flex-1 ${unread > 0 && !active ? "text-ink font-bold" : ""}`}>
+                                {d.other_user_name}
+                            </span>
+                            {unread > 0 && (
+                                <span
+                                    className="bg-signal text-white text-xs font-bold px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center leading-none"
+                                    data-testid={`dm-unread-${d.other_user_email}`}
+                                >
+                                    {unread > 99 ? "99+" : unread}
+                                </span>
                             )}
                         </button>
                     );

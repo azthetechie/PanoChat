@@ -1,20 +1,19 @@
-import React, { useEffect, useRef } from "react";
-import { EyeOff, Trash2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { EyeOff, Trash2, Smile } from "lucide-react";
 import { api } from "../lib/api";
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "🚀", "👀", "🙏", "🔥"];
 
 function formatTime(iso) {
     try {
-        const d = new Date(iso);
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     } catch {
         return "";
     }
 }
-
 function formatDate(iso) {
     try {
-        const d = new Date(iso);
-        return d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+        return new Date(iso).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
     } catch {
         return "";
     }
@@ -35,7 +34,40 @@ function AttachmentView({ att }) {
     );
 }
 
-export default function MessageList({ messages, currentUser, onMessageUpdated }) {
+/** Parse mentions: wrap `@Name` runs that match passed mention IDs into span. */
+function renderContentWithMentions(content, mentionIds = [], usersById = {}) {
+    if (!content) return null;
+    const mentionNames = mentionIds
+        .map((id) => (usersById[id]?.name || "").trim())
+        .filter(Boolean);
+    if (mentionNames.length === 0) return content;
+
+    // Build a regex that matches @<name> for any mentioned name
+    const pattern = new RegExp(
+        `@(${mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+        "g"
+    );
+    const parts = [];
+    let last = 0;
+    let m;
+    while ((m = pattern.exec(content)) !== null) {
+        if (m.index > last) parts.push(content.slice(last, m.index));
+        parts.push(
+            <span
+                key={`mention-${m.index}`}
+                className="bg-signal/10 text-signal font-bold px-1"
+                data-testid="mention-highlight"
+            >
+                @{m[1]}
+            </span>
+        );
+        last = m.index + m[0].length;
+    }
+    if (last < content.length) parts.push(content.slice(last));
+    return parts;
+}
+
+export default function MessageList({ messages, currentUser, onMessageUpdated, usersById = {} }) {
     const bottomRef = useRef(null);
 
     useEffect(() => {
@@ -69,8 +101,15 @@ export default function MessageList({ messages, currentUser, onMessageUpdated })
             console.error(e);
         }
     };
+    const handleReact = async (m, emoji) => {
+        try {
+            const res = await api.post(`/messages/${m.id}/react`, { emoji });
+            onMessageUpdated?.(res.data);
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
-    // Group by day
     const groups = [];
     let lastDate = "";
     for (const m of messages) {
@@ -114,6 +153,8 @@ export default function MessageList({ messages, currentUser, onMessageUpdated })
                         onHide={handleHide}
                         onUnhide={handleUnhide}
                         onDelete={handleDelete}
+                        onReact={handleReact}
+                        usersById={usersById}
                     />
                 )
             )}
@@ -122,9 +163,10 @@ export default function MessageList({ messages, currentUser, onMessageUpdated })
     );
 }
 
-function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete }) {
+function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete, onReact, usersById }) {
     const hidden = m.hidden;
     const isOwn = m.user_id === currentUserId;
+    const [pickerOpen, setPickerOpen] = useState(false);
     const initials = (m.user_name || m.user_email || "?")
         .split(" ")
         .map((p) => p[0])
@@ -132,10 +174,16 @@ function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete }) {
         .slice(0, 2)
         .join("")
         .toUpperCase();
+    const mentionsMe =
+        Array.isArray(m.mentions) && currentUserId && m.mentions.includes(currentUserId);
+    const reactions = m.reactions || {};
+    const reactionEntries = Object.entries(reactions).filter(([, arr]) => arr && arr.length);
 
     return (
         <div
-            className={`msg-row group flex gap-3 py-2 px-2 -mx-2 ${hidden ? "opacity-60" : ""}`}
+            className={`msg-row group flex gap-3 py-2 px-2 -mx-2 ${hidden ? "opacity-60" : ""} ${
+                mentionsMe ? "border-l-4 border-l-signal bg-signal/5 pl-3" : ""
+            }`}
             data-testid={`message-row-${m.id}`}
         >
             <div className="w-9 h-9 bg-ink text-white flex items-center justify-center font-heading font-bold text-sm shrink-0">
@@ -152,24 +200,79 @@ function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete }) {
                             hidden by admin
                         </span>
                     )}
+                    {mentionsMe && (
+                        <span className="ticker-label text-signal" data-testid="mentions-me-badge">
+                            mentions you
+                        </span>
+                    )}
                 </div>
                 {m.content && (
                     <div
                         className="text-base leading-relaxed whitespace-pre-wrap break-words"
                         data-testid="message-content"
                     >
-                        {m.content}
+                        {renderContentWithMentions(m.content, m.mentions, usersById)}
                     </div>
                 )}
                 {Array.isArray(m.attachments) &&
                     m.attachments.map((a, i) => <AttachmentView key={i} att={a} />)}
+                {reactionEntries.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2" data-testid="message-reactions">
+                        {reactionEntries.map(([emoji, userIds]) => {
+                            const mine = userIds.includes(currentUserId);
+                            return (
+                                <button
+                                    key={emoji}
+                                    onClick={() => onReact(m, emoji)}
+                                    className={`flex items-center gap-1 px-2 py-0.5 border text-xs transition-colors ${
+                                        mine
+                                            ? "border-signal bg-signal/10 text-ink"
+                                            : "border-border hover:border-ink"
+                                    }`}
+                                    data-testid={`reaction-${emoji}-${m.id}`}
+                                >
+                                    <span>{emoji}</span>
+                                    <span className="font-bold">{userIds.length}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
-            <div className="flex items-start gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-start gap-1 opacity-0 group-hover:opacity-100 transition-opacity relative">
+                <button
+                    onClick={() => setPickerOpen((v) => !v)}
+                    className="p-1.5 border border-border hover:border-ink"
+                    title="Add reaction"
+                    data-testid={`open-reaction-picker-${m.id}`}
+                >
+                    <Smile className="w-3.5 h-3.5" />
+                </button>
+                {pickerOpen && (
+                    <div
+                        className="absolute right-0 top-8 z-20 bg-white border border-ink p-1 flex gap-1 shadow-lg"
+                        data-testid={`reaction-picker-${m.id}`}
+                    >
+                        {QUICK_REACTIONS.map((e) => (
+                            <button
+                                key={e}
+                                onClick={() => {
+                                    onReact(m, e);
+                                    setPickerOpen(false);
+                                }}
+                                className="text-lg leading-none px-1.5 py-1 hover:bg-surface"
+                                data-testid={`pick-reaction-${e}-${m.id}`}
+                            >
+                                {e}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 {isAdmin && !hidden && (
                     <button
                         onClick={() => onHide(m)}
                         className="p-1.5 border border-border hover:border-ink"
-                        title="Hide (moderate) message"
+                        title="Hide message"
                         data-testid={`hide-message-${m.id}`}
                     >
                         <EyeOff className="w-3.5 h-3.5" />
@@ -179,7 +282,6 @@ function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete }) {
                     <button
                         onClick={() => onUnhide(m)}
                         className="p-1.5 border border-border hover:border-ink text-xs"
-                        title="Unhide message"
                         data-testid={`unhide-message-${m.id}`}
                     >
                         Unhide

@@ -35,9 +35,11 @@ def _user_can_view(channel: dict, user: dict) -> bool:
 @router.get("", response_model=List[ChannelPublic])
 async def list_channels(user: dict = Depends(get_current_user)):
     db = get_db()
-    query = {} if user.get("role") == "admin" else {
-        "$or": [{"is_private": False}, {"members": user["id"]}]
-    }
+    base_filter = {"type": {"$ne": "dm"}}  # exclude DMs from the channel list
+    if user.get("role") == "admin":
+        query = base_filter
+    else:
+        query = {**base_filter, "$or": [{"is_private": False}, {"members": user["id"]}]}
     channels = await db.channels.find(query, {"_id": 0}).sort("created_at", 1).to_list(1000)
     return [ChannelPublic(**c) for c in channels]
 
@@ -62,6 +64,7 @@ async def create_channel(payload: ChannelCreateRequest, admin: dict = Depends(ge
         "archived": False,
         "created_by": admin["id"],
         "members": members,
+        "type": "channel",
         "created_at": now_iso(),
     }
     await db.channels.insert_one(doc)

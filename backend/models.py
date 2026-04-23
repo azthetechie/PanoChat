@@ -91,6 +91,22 @@ class ChannelPublic(BaseModel):
     created_by: str
     members: List[str]
     created_at: str
+    type: Literal["channel", "dm"] = "channel"
+
+
+class DmPublic(BaseModel):
+    id: str
+    other_user_id: str
+    other_user_name: str
+    other_user_email: str
+    other_user_avatar: Optional[str] = None
+    last_message_preview: Optional[str] = None
+    last_message_at: Optional[str] = None
+    unread: int = 0
+
+
+class DmCreateRequest(BaseModel):
+    user_id: str
 
 
 # --- Messages ---
@@ -105,6 +121,11 @@ class Attachment(BaseModel):
 class MessageCreateRequest(BaseModel):
     content: str = Field(default="", max_length=4000)
     attachments: List[Attachment] = Field(default_factory=list)
+    mentions: List[str] = Field(default_factory=list)  # user_ids mentioned
+
+
+class ReactionRequest(BaseModel):
+    emoji: str = Field(min_length=1, max_length=16)
 
 
 class MessagePublic(BaseModel):
@@ -116,6 +137,8 @@ class MessagePublic(BaseModel):
     avatar_url: Optional[str] = None
     content: str
     attachments: List[Attachment] = Field(default_factory=list)
+    mentions: List[str] = Field(default_factory=list)
+    reactions: dict = Field(default_factory=dict)  # {emoji: [user_id, ...]}
     hidden: bool = False
     hidden_by: Optional[str] = None
     hidden_at: Optional[str] = None

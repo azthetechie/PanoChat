@@ -1,8 +1,14 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, getErrorMessage } from "../lib/api";
-import { ArrowLeft, Check, User as UserIcon, Lock, MailCheck } from "lucide-react";
+import { ArrowLeft, Check, User as UserIcon, Lock, MailCheck, Bell } from "lucide-react";
+import {
+    notificationsEnabled,
+    requestNotificationPermission,
+    setNotificationPreference,
+    showDesktopNotification,
+} from "../lib/notifications";
 
 export default function ProfilePage() {
     const { user, refreshMe, setUser } = useAuth();
@@ -64,6 +70,62 @@ function Section({ title, kicker, icon, children }) {
         </section>
     );
 }
+
+function NotificationsSection() {
+    const [enabled, setEnabled] = useState(notificationsEnabled());
+    const [perm, setPerm] = useState(
+        typeof Notification !== "undefined" ? Notification.permission : "default"
+    );
+
+    useEffect(() => {
+        setEnabled(notificationsEnabled());
+    }, [perm]);
+
+    const onToggle = async () => {
+        if (typeof Notification === "undefined") return;
+        if (!enabled) {
+            const res = await requestNotificationPermission();
+            setPerm(res);
+            if (res === "granted") {
+                setNotificationPreference(true);
+                setEnabled(true);
+                showDesktopNotification("Notifications enabled", "We'll ping you for DMs & mentions.");
+            }
+        } else {
+            setNotificationPreference(false);
+            setEnabled(false);
+        }
+    };
+
+    const unsupported = typeof Notification === "undefined";
+
+    return (
+        <Section title="Desktop notifications" kicker="// PING ME" icon={Bell}>
+            <div className="flex items-start justify-between gap-4">
+                <p className="text-sm text-muted-foreground max-w-xl">
+                    Get a browser notification for new <span className="font-bold">DMs</span> and{" "}
+                    <span className="font-bold">@mentions</span> when this tab is not focused.
+                    No notification for regular channel chatter — only what matters.
+                </p>
+                <button
+                    onClick={onToggle}
+                    disabled={unsupported || perm === "denied"}
+                    className={enabled ? "btn-signal" : "btn-ghost"}
+                    data-testid="toggle-notifications-button"
+                >
+                    {unsupported
+                        ? "Unsupported"
+                        : perm === "denied"
+                          ? "Blocked in browser"
+                          : enabled
+                            ? "Enabled"
+                            : "Enable"}
+                </button>
+            </div>
+        </Section>
+    );
+}
+
 
 function AccountInfo({ user, onSaved }) {
     const [name, setName] = useState(user.name);
