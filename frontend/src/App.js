@@ -9,6 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
 import AdminPage from "./pages/AdminPage";
 import ProfilePage from "./pages/ProfilePage";
+import DirectoryPage from "./pages/DirectoryPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 function AppRoutes() {
@@ -34,6 +35,14 @@ function AppRoutes() {
                         element={
                             <ProtectedRoute>
                                 <ProfilePage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/directory"
+                        element={
+                            <ProtectedRoute>
+                                <DirectoryPage />
                             </ProtectedRoute>
                         }
                     />

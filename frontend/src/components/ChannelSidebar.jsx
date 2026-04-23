@@ -13,6 +13,7 @@ import {
     UserCog,
     X,
     MessageSquarePlus,
+    Users as UsersIcon,
 } from "lucide-react";
 import PresenceDot from "./PresenceDot";
 
@@ -189,6 +190,14 @@ export default function ChannelSidebar({
             </nav>
 
             <div className="border-t border-border p-4 space-y-2">
+                <button
+                    className="btn-ghost w-full flex items-center justify-center gap-2"
+                    onClick={() => navigate("/directory")}
+                    data-testid="open-directory-button"
+                >
+                    <UsersIcon className="w-4 h-4" />
+                    Team directory
+                </button>
                 {user?.role === "admin" && (
                     <button
                         className="btn-ghost w-full flex items-center justify-center gap-2"
