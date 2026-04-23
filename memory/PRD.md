@@ -34,20 +34,21 @@
 ## Status of implementation (Feb 2026)
 ### Completed
 - Auth: login, logout, /me, refresh, register (admin), change-password, forgot/reset-password ✅
-- **Password-reset email via Resend** (falls back to stdout log if unconfigured or Resend API returns error) ✅
+- Password-reset email via Resend + **sender-domain validation at startup** (warns if domain not verified) ✅
 - Brute-force lockout working behind ingress (X-Forwarded-For + email-only counter) ✅
 - Users CRUD (admin) with self-protection (can't delete/demote/deactivate self) ✅
 - Channels CRUD (admin), members add/remove, archive ✅
-- 1:1 Direct Messages — auto-created on first message; DMs excluded from channel list; separate sidebar section; **partial unique index** on `channels.name` where `type='dm'` (race-safe) ✅
+- 1:1 Direct Messages — auto-created on first message; DMs excluded from channel list; partial unique index on `channels.name` where `type='dm'` (race-safe) ✅
 - Messages: create/list/delete, hide/unhide (admin), moderation search ✅
-- **Message threads** — `POST /api/messages/{id}/react`, thread panel (desktop side + mobile drawer), denorm `thread_reply_count` + `thread_last_reply_at` on parent, WS `thread:reply` broadcast ✅
-- @Mentions — autocomplete popover in composer; highlighted row + inline `@Name` styling; mentions-me badge ✅
-- Reactions — per-message emoji toggles; chips below message; realtime broadcast ✅
+- Message threads (parent_id, denorm counters, side panel + mobile drawer, WS thread:reply) ✅
+- @Mentions with autocomplete popover + row highlight + mentions-me badge ✅
+- Reactions (8-emoji quick picker; chips; realtime broadcast) ✅
 - Desktop notifications (DMs + @mentions only; respects quiet hours + snooze) ✅
-- **Mute / quiet hours** — client-side: snooze 1h/8h/24h/until 9 AM; daily quiet-hours window ✅
+- Mute + daily quiet hours (snooze 1h/8h/24h/until 9 AM; window-based schedule) ✅
+- **Presence** — live online/offline dots on DM sidebar, mention picker, NewDmDialog, message rows; backend counts per-user WS connections; broadcasts `presence:update` to all on 0↔1 transitions; multi-tab safe ✅
 - File uploads (PNG/JPG/GIF/WebP, 15MB cap) + static serving ✅
 - Giphy search + trending ✅
-- WebSocket real-time broadcasts (message:new, :hidden, :unhidden, :deleted, :reactions, thread:reply) ✅
+- WebSocket real-time broadcasts (message:new, :hidden, :unhidden, :deleted, :reactions, thread:reply, presence:update) ✅
 - Profile page (name, avatar, password change, reset-link request, notifications toggle, snooze, quiet hours) ✅
 - Admin Branding tab (logo + hero image + copy + live preview) ✅
 - Unread counters per channel + DM (sidebar badge; auto-mark-read on open/focus/send) ✅
@@ -55,8 +56,8 @@
 - Swiss Brutalist UI (Bricolage Grotesque + Manrope, #FF5A00 signal, rounded-none) ✅
 - Docker: Dockerfile.backend, Dockerfile.frontend (nginx with WS proxy), docker-compose.yml, .env.example ✅
 - README-SELFHOST.md with first-login + production tips ✅
-- Backend tests: **89/89** pytest passing ✅
-- Frontend E2E: comprehensive Playwright coverage including thread end-to-end + quiet-hours UI ✅
+- Backend tests: **97/97** pytest passing ✅
+- Frontend E2E: comprehensive Playwright coverage (threads, quiet hours, presence) ✅
 
 ### Not implemented (deferred)
 - P1: SMTP/SES email delivery for password reset (currently logs link to backend stdout)
