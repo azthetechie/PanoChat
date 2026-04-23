@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { EyeOff, Trash2, Smile, MessageSquare } from "lucide-react";
 import { api } from "../lib/api";
+import PresenceDot from "./PresenceDot";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "🚀", "👀", "🙏", "🔥"];
 

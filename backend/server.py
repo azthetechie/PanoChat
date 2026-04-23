@@ -23,6 +23,7 @@ from routes.branding import router as branding_router  # noqa: E402
 from routes.unread import router as unread_router  # noqa: E402
 from routes.dms import router as dms_router  # noqa: E402
 from routes.presence import router as presence_router  # noqa: E402
+from routes.push import router as push_router  # noqa: E402
 
 
 logging.basicConfig(
@@ -78,6 +79,7 @@ api_router.include_router(uploads_router)
 api_router.include_router(giphy_router)
 api_router.include_router(branding_router)
 api_router.include_router(presence_router)
+api_router.include_router(push_router)
 api_router.include_router(websocket_router)  # /api/ws
 
 app.include_router(api_router)
@@ -88,6 +90,12 @@ async def on_startup():
     init_db()
     await ensure_indexes()
     await seed_admin_and_defaults()
+    # Initialize VAPID keys for web-push (auto-generate on first boot, persist in DB)
+    try:
+        from push_service import init_vapid_keys
+        await init_vapid_keys()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("VAPID key init skipped: %s", e)
     # Email sender validation — logs a warning if domain isn't verified with Resend
     try:
         from email_service import validate_sender_domain

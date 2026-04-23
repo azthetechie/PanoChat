@@ -47,3 +47,7 @@ async def ensure_indexes() -> None:
     )
     # Threading: fast fetch of replies for a parent
     await db.messages.create_index([("parent_id", 1), ("created_at", 1)])
+    # Web-push: fast lookup + unique subscription endpoints
+    await db.push_subscriptions.create_index("endpoint", unique=True)
+    await db.push_subscriptions.create_index("user_id")
+    await db.config.create_index("key", unique=True)

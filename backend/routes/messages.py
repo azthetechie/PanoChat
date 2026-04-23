@@ -7,6 +7,7 @@ from auth import get_current_admin, get_current_user
 from db import get_db
 from models import MessageCreateRequest, MessagePublic, ReactionRequest, new_id, now_iso
 from ws_manager import manager
+import push_service
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -81,7 +82,7 @@ async def post_message(
     user: dict = Depends(get_current_user),
 ):
     db = get_db()
-    await _assert_channel_access(channel_id, user)
+    channel = await _assert_channel_access(channel_id, user)
     if not payload.content.strip() and not payload.attachments:
         raise HTTPException(status_code=400, detail="Empty message")
 
@@ -146,7 +147,54 @@ async def post_message(
     else:
         # Top-level message — normal broadcast
         await manager.broadcast_channel(channel_id, {"type": "message:new", "message": doc})
+
+    # Web-push: notify offline members (survives tab close)
+    try:
+        await _fire_push(channel, doc, user)
+    except Exception:  # noqa: BLE001
+        pass
     return MessagePublic(**doc)
+
+
+async def _fire_push(channel: dict, message: dict, sender: dict) -> None:
+    """Send web-push to channel members who aren't currently connected via WS."""
+    db = get_db()
+    is_dm = channel.get("type") == "dm"
+
+    if is_dm or channel.get("is_private"):
+        recipients = [uid for uid in channel.get("members", []) if uid != sender["id"]]
+    else:
+        # Public channel: notify all active users
+        users = await db.users.find(
+            {"active": True, "id": {"$ne": sender["id"]}}, {"_id": 0, "id": 1}
+        ).to_list(10000)
+        recipients = [u["id"] for u in users]
+
+    # Skip users with live WS connections — they'll get in-app notifications.
+    offline = [uid for uid in recipients if not manager.is_online(uid)]
+    if not offline:
+        return
+
+    title = (
+        sender.get("name") or sender.get("email") or "New message"
+        if is_dm
+        else f"#{channel.get('name', 'channel')}"
+    )
+    body_prefix = "" if is_dm else f"{sender.get('name') or sender.get('email') or 'Someone'}: "
+    content = message.get("content") or ""
+    if not content and message.get("attachments"):
+        content = f"[{message['attachments'][0].get('type', 'attachment')}]"
+    body = (body_prefix + content).strip()[:200] or "New message"
+
+    payload = {
+        "title": title,
+        "body": body,
+        "url": "/",
+        "channel_id": channel["id"],
+        "message_id": message["id"],
+        "tag": f"ch:{channel['id']}",
+    }
+    await push_service.send_to_users(offline, payload)
 
 
 @router.post("/{message_id}/react", response_model=MessagePublic)

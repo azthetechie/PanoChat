@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, getErrorMessage } from "../lib/api";
-import { ArrowLeft, Check, User as UserIcon, Lock, MailCheck, Bell, Moon, Clock } from "lucide-react";
+import { ArrowLeft, Check, User as UserIcon, Lock, MailCheck, Bell, Moon, Clock, Radio } from "lucide-react";
 import {
     notificationsEnabled,
     getNotificationPreference,
@@ -17,6 +17,13 @@ import {
     setQuietHours,
     isInQuietHours,
 } from "../lib/notifications";
+import {
+    isPushSupported,
+    getSubscriptionStatus,
+    enablePush,
+    disablePush,
+    sendTestPush,
+} from "../lib/webpush";
 
 export default function ProfilePage() {
     const { user, refreshMe, setUser } = useAuth();
@@ -56,6 +63,7 @@ export default function ProfilePage() {
                 />
                 <PasswordChange />
                 <NotificationsSection />
+                <WebPushSection />
                 <QuietHoursSection />
                 <PasswordResetRequest email={user.email} />
             </main>
@@ -149,6 +157,115 @@ function NotificationsSection() {
                             ? "Enabled"
                             : "Enable"}
                 </button>
+            </div>
+        </Section>
+    );
+}
+
+function WebPushSection() {
+    const supported = isPushSupported();
+    const [subscribed, setSubscribed] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState("");
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const s = await getSubscriptionStatus();
+                setSubscribed(s.subscribed);
+            } catch (_) {
+                /* ignore */
+            }
+        })();
+    }, []);
+
+    const onToggle = async () => {
+        setBusy(true);
+        setMsg("");
+        setError("");
+        try {
+            if (subscribed) {
+                await disablePush();
+                setSubscribed(false);
+                setMsg("Web-push disabled on this device.");
+            } else {
+                await enablePush();
+                setSubscribed(true);
+                setMsg("Web-push enabled. You'll get notified even when this tab is closed.");
+            }
+        } catch (err) {
+            setError(err?.message || "Could not update push subscription.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const onTest = async () => {
+        setBusy(true);
+        setMsg("");
+        setError("");
+        try {
+            await sendTestPush();
+            setMsg("Test notification sent. Close this tab first to see the OS notification.");
+        } catch (err) {
+            setError(getErrorMessage(err));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <Section title="Push notifications (tab closed)" kicker="// ALWAYS ON" icon={Radio}>
+            <div className="space-y-4">
+                <p className="text-sm text-muted-foreground max-w-xl">
+                    Subscribe this device to receive notifications for <span className="font-bold">every new message</span>{" "}
+                    in channels you're part of — even when this tab is closed or the browser is in the background.
+                    Uses the browser's Push API and a Service Worker. Each device must be enabled separately.
+                </p>
+                <div className="flex items-center gap-2 text-xs">
+                    <span
+                        className={`w-2 h-2 ${subscribed ? "bg-green-600" : "bg-muted-foreground"}`}
+                        data-testid="webpush-status-dot"
+                    />
+                    <span className="ticker-label" data-testid="webpush-status-label">
+                        {!supported
+                            ? "unsupported in this browser"
+                            : subscribed
+                              ? "subscribed on this device"
+                              : "not subscribed"}
+                    </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={onToggle}
+                        disabled={!supported || busy}
+                        className={subscribed ? "btn-signal" : "btn-ghost"}
+                        data-testid="toggle-webpush-button"
+                    >
+                        {!supported
+                            ? "Unsupported"
+                            : busy
+                              ? "Working…"
+                              : subscribed
+                                ? "Unsubscribe"
+                                : "Enable push"}
+                    </button>
+                    {subscribed && (
+                        <button
+                            onClick={onTest}
+                            disabled={busy}
+                            className="btn-ghost text-sm"
+                            data-testid="test-webpush-button"
+                        >
+                            Send test push
+                        </button>
+                    )}
+                </div>
+                <div className="text-xs">
+                    {msg && <span className="text-green-700" data-testid="webpush-msg">{msg}</span>}
+                    {error && <span className="text-destructive" data-testid="webpush-error">{error}</span>}
+                </div>
             </div>
         </Section>
     );
