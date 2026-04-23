@@ -1,0 +1,35 @@
+{
+  "summary": "End-to-end frontend Playwright test of Panorama Comms iteration 2 against the public preview URL. 27/27 critical UI flows passed: login → chat redirect, sidebar #general, send text/image/GIF messages (Enter-to-send), admin hover-hide → 'hidden by admin' badge, sidebar Profile/Logout, Profile name save, password mismatch validation, forgot-password link generation, /forgot-password page render, admin Users CRUD (create/promote/demote/deactivate/delete), admin Channels (create/archive/manage members/delete), Moderation search + hide/unhide, Branding save (brand name, tagline, hero heading/sub, logo + hero image upload) and the new branding correctly rendering on /login after logout (brand name, logo image, hero image all present). Branding was restored to factory defaults via API after the test so the demo login is clean. Display name was reverted to 'Operations Admin'. Admin password was never modified (mismatch validation path). One non-blocking console warning observed: react-dom hydration warning in Moderation channel filter <option> (likely caused by the Emergent code-instrumentation wrapper inserting <span style=display:contents> as a child of <option>). Also: 'Made with Emergent' badge overlaps the bottom-right Send button and intercepts pointer events from real users in that exact corner — Playwright had to use JS click / Enter-to-send to bypass it. Recommend the main agent add bottom padding to the composer (or right-margin to the Send button) so the badge does not sit on top of the Send button on default viewports.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "MessageComposer / global layout", "issue": "Emergent badge (id=emergent-badge, fixed bottom-right) overlaps the Send button on the chat page at 1920x1080 and intercepts pointer events. Real users can still send via Enter, but a click on the visible Send button is blocked in that corner.", "selector": "[data-testid=\"send-message-button\"]", "priority": "MEDIUM"},
+      {"component": "AdminPage > ModerationTab channel <select>", "issue": "React DOM hydration warning: '<span> cannot be a child of <option>' — caused by code-instrumentation x-excluded span wrapping {c.name} inside <option>. Functionally harmless but pollutes the console.", "selector": "[data-testid=\"moderation-channel-filter\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Chat page", "issues": ["Send button visually obstructed by the Emergent badge in the bottom-right; consider adding pr/mb to the composer's right edge."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Add right padding (e.g. pr-20 on the composer row, or mr-20 on the Send button) so the Emergent badge does not overlap the Send button.",
+    "Wrap dynamic option text (e.g. {`#${c.name}`}) so the instrumented <span> is not emitted directly inside <option>, or set the option's text via a string template, to remove the hydration warning."
+  ],
+  "critical_code_review_comments": [
+    "BrandingContext.resolveAssetUrl + GET /api/branding being public works correctly — login page picks up new logo + hero image immediately after PUT /api/branding without re-auth.",
+    "MessageComposer Enter-to-send works as advertised; image upload + GIF picker integrate via /api/uploads/image and /api/giphy/* respectively and both render attachments in MessageList.",
+    "Admin hide/unhide flow correctly toggles the message-hidden-label and is reflected in real time via WebSocket (message:hidden / message:unhidden events).",
+    "ProfilePage password change client-side validates length>=6 and confirm==new before POSTing, matching the backend's expectations.",
+    "AdminPage is ~1225 lines; consider splitting Users/Channels/Moderation/Branding tabs into separate files (currently violates the <700-line guideline).",
+    "BrandingTab uses two helper components named 'Field' (one local, one in ProfilePage) — duplicate; could be hoisted into a shared component."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not retested this iteration (already 100% in iteration_2)", "frontend": "100% (27/27 critical flows)"},
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 (verified working — password unchanged after test).",
+  "seed_data_creation": "Created and cleaned up: ephemeral test user test_user_<ts>@example.com (deleted), ephemeral channel test-ch-<ts> (deleted). Branding was set to test values then RESTORED to factory defaults via API at end of run. Display name restored to 'Operations Admin'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All iteration-2 FE flows verified end-to-end against the public preview URL with Playwright. Two non-blocking issues to be aware of: (1) Emergent badge overlay on the Send button — use page.press('[data-testid=\"composer-textarea\"]','Enter') or JS click to send during automation; (2) react hydration warning in Moderation channel filter (cosmetic only). All admin CRUD, branding upload + login-page reflection, and profile/security flows are working. Brute-force lockout from iteration 1/2 still in place (no regression triggered during this run).",
+  "rca of the issue": "Send-button click interception RCA: the Emergent preview injects a fixed-positioned <a id=\"emergent-badge\"> into the bottom-right of every page. The chat MessageComposer's Send button sits in the same screen region with no right-margin, so on a real desktop viewport the badge's hitbox sits directly on top of the Send button. Mitigation: add right padding to the composer container (e.g. `pr-24` on the flex row, or place the badge on the left during preview) so the Send button hitbox is not obscured."
+}
