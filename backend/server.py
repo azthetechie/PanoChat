@@ -24,6 +24,7 @@ from routes.unread import router as unread_router  # noqa: E402
 from routes.dms import router as dms_router  # noqa: E402
 from routes.presence import router as presence_router  # noqa: E402
 from routes.push import router as push_router  # noqa: E402
+from routes.pwa import router as pwa_router  # noqa: E402
 
 
 logging.basicConfig(
@@ -80,6 +81,7 @@ api_router.include_router(giphy_router)
 api_router.include_router(branding_router)
 api_router.include_router(presence_router)
 api_router.include_router(push_router)
+api_router.include_router(pwa_router)  # /api/manifest.webmanifest
 api_router.include_router(websocket_router)  # /api/ws
 
 app.include_router(api_router)

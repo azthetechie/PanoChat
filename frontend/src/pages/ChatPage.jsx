@@ -9,6 +9,7 @@ import MessageComposer from "../components/MessageComposer";
 import CreateChannelDialog from "../components/CreateChannelDialog";
 import NewDmDialog from "../components/NewDmDialog";
 import ThreadPanel from "../components/ThreadPanel";
+import InstallAppButton from "../components/InstallAppButton";
 import { useChatSocket } from "../hooks/useChatSocket";
 import { useDesktopNotifications } from "../lib/notifications";
 import { usePresence } from "../context/PresenceContext";
@@ -427,6 +428,7 @@ export default function ChatPage() {
                         )}
                     </div>
                     <div className="flex items-center gap-3 md:gap-4 text-xs text-muted-foreground shrink-0">
+                        <InstallAppButton />
                         <div className="flex items-center gap-1">
                             <span
                                 className={`w-2 h-2 ${

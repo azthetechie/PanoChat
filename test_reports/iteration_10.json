@@ -1,0 +1,44 @@
+{
+  "summary": "ITER10 PWA (branded manifest + install-prompt button) — ALL OBJECTIVES VERIFIED. Backend: 6/6 new iter10 PWA tests PASS (manifest schema + branding reflection, 3 icon PNGs, index.html PWA tags). Full regression 122/123 (1 pre-existing WS-ordering flake in backend_test.py, unrelated to PWA). Frontend: login+chat smoke clean (0 page/console errors), install-app-button correctly hidden in headless (no beforeinstallprompt fired), and confirmed to render with both install-app-button + install-app-dismiss when beforeinstallprompt is synthetically dispatched, message send works, profile toggle-webpush-button still present.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "WS /api/ws", "issue": "Pre-existing test backend_test.py::test_ws_subscribe_and_broadcast_on_post expects first frame == 'hello' but server now emits 'presence:update' first. Not caused by this iteration; just a fragile assertion. Safe fix: drain frames until type=='hello' rather than asserting on frame[0]."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter10_pwa.py",
+    "/app/test_reports/pytest/pytest_iter10.xml",
+    "/app/test_reports/pytest/pytest_iter10_full.xml"
+  ],
+  "action_items": [
+    "(Optional, non-PWA) Harden backend_test.py::test_ws_subscribe_and_broadcast_on_post to drain frames until it sees type=='hello' instead of asserting the first frame."
+  ],
+  "critical_code_review_comments": [
+    "routes/pwa.py _load_branding is awaited correctly and short_name derivation (split on '/', trim, <=12 chars) is deterministic — unit-verified via test_manifest_reflects_branding against live /api/branding.",
+    "Default icon order: uploaded logo (if any) is FIRST at 512x512 'any', then static /icon-192, /icon-512, /icon-512-maskable. Browsers will prefer the uploaded logo for 512 'any' — intentional and correct.",
+    "Manifest paths for default icons are root-relative '/icon-192.png' etc. — these are served by the frontend container at ingress root (verified: 200 image/png for all three).",
+    "InstallAppButton.jsx: gated render `if (installed || dismissed || !deferredPrompt) return null;` — confirmed it renders nothing in headless Chromium where beforeinstallprompt never fires. Synthesizing the event in-page makes the button + dismiss appear, which proves the wiring is correct without spoofing anything in production.",
+    "InstallAppButton dismiss uses localStorage key panorama_install_dismissed_until with a 7-day suppression — reasonable UX; guards against re-nag.",
+    "index.html: <link rel='manifest' href='/api/manifest.webmanifest'> uses absolute path so ingress routes to backend — verified browser-side (manifest href resolves to $REACT_APP_BACKEND_URL/api/manifest.webmanifest).",
+    "apple-touch-icon and icon link use %PUBLIC_URL%/icon-192.png which CRA replaces at build — currently resolves to /icon-192.png (verified: 200 image/png)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter10_pwa.py (new — 6 tests, 100% pass)"
+  ],
+  "success_rate": {
+    "backend": "100% on iter10 suite (6/6); 122/123 on full regression (1 pre-existing WS-ordering flake, unrelated)",
+    "frontend": "100% of review-request checks verified"
+  },
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 — unchanged, NOT modified during testing.",
+  "seed_data_creation": "One probe message 'TEST_iter10 pwa smoke' posted in the default channel via composer (not cleaned — single admin message, low impact).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "PWA manifest is production-ready. To re-verify quickly: curl $BACKEND/api/manifest.webmanifest | jq — check name matches /api/branding.brand_name, display=='standalone', theme_color=='#FF5A00', icons[] has 192 + 512 + maskable. Static icons: curl -I $BACKEND/icon-192.png (image/png). Frontend install button cannot be verified in real production headless because Chromium only fires beforeinstallprompt when engagement heuristics + manifest + SW criteria are met over time — the component correctly renders nothing when the event hasn't fired, and renders install-app-button + install-app-dismiss the moment it does (confirmed via synthetic event dispatch in automation). The pre-existing WS-ordering flake in backend_test.py::test_ws_subscribe_and_broadcast_on_post is unrelated to iter10 and should be fixed in a separate hygiene pass.",
+  "rca of the issue": "N/A — iteration 10 is a feature implementation (PWA manifest + icons + install-prompt button). All acceptance criteria verified green."
+}
