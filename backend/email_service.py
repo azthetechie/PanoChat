@@ -7,6 +7,9 @@ import resend
 
 logger = logging.getLogger("email_service")
 
+# Addresses/domains that don't need verification (Resend test sender)
+ALLOWED_DOMAINS_WITHOUT_VERIFY = {"resend.dev"}
+
 
 def _configured() -> bool:
     return bool(os.environ.get("RESEND_API_KEY"))
@@ -24,6 +27,81 @@ def _from_header() -> str:
     if name:
         return f"{name} <{sender}>"
     return sender
+
+
+def _sender_domain() -> str:
+    sender = os.environ.get("SENDER_EMAIL", "").strip()
+    if "@" in sender:
+        return sender.split("@", 1)[1].lower()
+    return ""
+
+
+def validate_sender_domain() -> dict:
+    """Check Resend for verified domains and warn if SENDER_EMAIL's domain isn't one.
+
+    Returns {configured, sender, domain, verified, warning, domains} — never raises.
+    Called once on startup; logs a clear warning for admins if misconfigured.
+    """
+    sender = os.environ.get("SENDER_EMAIL", "").strip()
+    domain = _sender_domain()
+    result = {
+        "configured": _configured(),
+        "sender": sender,
+        "domain": domain,
+        "verified": False,
+        "warning": None,
+        "domains": [],
+    }
+
+    if not _configured():
+        result["warning"] = "RESEND_API_KEY is empty — password-reset emails will fall back to stdout logs."
+        logger.warning(result["warning"])
+        return result
+
+    if not sender:
+        result["warning"] = "SENDER_EMAIL is empty — Resend sends will fail. Set SENDER_EMAIL in .env."
+        logger.warning(result["warning"])
+        return result
+
+    if domain in ALLOWED_DOMAINS_WITHOUT_VERIFY:
+        result["verified"] = True
+        logger.info(
+            "Email: using Resend test sender '%s' — delivery restricted to the Resend account owner's "
+            "address. For production, verify your own domain at https://resend.com/domains.",
+            sender,
+        )
+        return result
+
+    try:
+        _init()
+        listed = resend.Domains.list()
+        # SDK returns either a dict {"data": [...]} or a list depending on version
+        items = listed.get("data") if isinstance(listed, dict) else listed
+        verified_domains = []
+        for d in items or []:
+            name = (d.get("name") or "").lower()
+            status = (d.get("status") or "").lower()
+            if status == "verified":
+                verified_domains.append(name)
+        result["domains"] = verified_domains
+        if domain in verified_domains:
+            result["verified"] = True
+            logger.info("Email: SENDER_EMAIL domain '%s' is verified with Resend. ✅", domain)
+        else:
+            msg = (
+                f"Email: SENDER_EMAIL domain '{domain}' is NOT verified with Resend. "
+                f"Password-reset emails will fail at send time and fall back to stdout logs. "
+                f"Verify the domain at https://resend.com/domains (verified so far: "
+                f"{verified_domains or 'none'})."
+            )
+            result["warning"] = msg
+            logger.warning(msg)
+    except Exception as e:  # noqa: BLE001
+        msg = f"Email: could not verify Resend domains ({e}). Will still attempt sends."
+        result["warning"] = msg
+        logger.warning(msg)
+
+    return result
 
 
 async def send_password_reset(

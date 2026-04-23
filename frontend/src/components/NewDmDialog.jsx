@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { X, MessageSquarePlus } from "lucide-react";
 import { api, getErrorMessage } from "../lib/api";
+import PresenceDot from "./PresenceDot";
 
 export default function NewDmDialog({ onClose, onOpened }) {
     const [users, setUsers] = useState([]);
@@ -100,8 +101,13 @@ export default function NewDmDialog({ onClose, onOpened }) {
                             data-testid={`new-dm-user-${u.email}`}
                         >
                             <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-9 h-9 bg-ink text-white flex items-center justify-center font-heading font-bold text-sm shrink-0">
-                                    {(u.name || u.email).slice(0, 2).toUpperCase()}
+                                <div className="relative shrink-0">
+                                    <div className="w-9 h-9 bg-ink text-white flex items-center justify-center font-heading font-bold text-sm">
+                                        {(u.name || u.email).slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <div className="absolute -bottom-0.5 -right-0.5">
+                                        <PresenceDot userId={u.id} size="sm" />
+                                    </div>
                                 </div>
                                 <div className="min-w-0">
                                     <div className="text-sm font-bold truncate">{u.name}</div>

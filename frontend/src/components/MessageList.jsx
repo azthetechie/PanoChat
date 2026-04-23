@@ -187,8 +187,13 @@ function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete, onR
             }`}
             data-testid={`message-row-${m.id}`}
         >
-            <div className="w-9 h-9 bg-ink text-white flex items-center justify-center font-heading font-bold text-sm shrink-0">
-                {initials}
+            <div className="relative shrink-0">
+                <div className="w-9 h-9 bg-ink text-white flex items-center justify-center font-heading font-bold text-sm">
+                    {initials}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5">
+                    <PresenceDot userId={m.user_id} size="xs" />
+                </div>
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">

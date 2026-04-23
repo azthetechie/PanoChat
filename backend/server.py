@@ -22,6 +22,7 @@ from routes.websocket import router as websocket_router  # noqa: E402
 from routes.branding import router as branding_router  # noqa: E402
 from routes.unread import router as unread_router  # noqa: E402
 from routes.dms import router as dms_router  # noqa: E402
+from routes.presence import router as presence_router  # noqa: E402
 
 
 logging.basicConfig(
@@ -76,6 +77,7 @@ api_router.include_router(messages_router)
 api_router.include_router(uploads_router)
 api_router.include_router(giphy_router)
 api_router.include_router(branding_router)
+api_router.include_router(presence_router)
 api_router.include_router(websocket_router)  # /api/ws
 
 app.include_router(api_router)
@@ -86,6 +88,13 @@ async def on_startup():
     init_db()
     await ensure_indexes()
     await seed_admin_and_defaults()
+    # Email sender validation — logs a warning if domain isn't verified with Resend
+    try:
+        from email_service import validate_sender_domain
+        import asyncio
+        await asyncio.to_thread(validate_sender_domain)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Sender validation skipped: %s", e)
     logger.info("Startup complete. Admin seeded. Indexes ensured.")
 
 

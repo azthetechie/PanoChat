@@ -14,6 +14,7 @@ import {
     X,
     MessageSquarePlus,
 } from "lucide-react";
+import PresenceDot from "./PresenceDot";
 
 export default function ChannelSidebar({
     channels,
@@ -163,8 +164,13 @@ export default function ChannelSidebar({
                             }`}
                             data-testid={`dm-item-${d.other_user_email}`}
                         >
-                            <div className="w-7 h-7 bg-ink text-white flex items-center justify-center font-heading font-bold text-xs shrink-0">
-                                {initials}
+                            <div className="relative shrink-0">
+                                <div className="w-7 h-7 bg-ink text-white flex items-center justify-center font-heading font-bold text-xs">
+                                    {initials}
+                                </div>
+                                <div className="absolute -bottom-0.5 -right-0.5">
+                                    <PresenceDot userId={d.other_user_id} size="xs" />
+                                </div>
                             </div>
                             <span className={`truncate flex-1 ${unread > 0 && !active ? "text-ink font-bold" : ""}`}>
                                 {d.other_user_name}

@@ -11,6 +11,7 @@ import NewDmDialog from "../components/NewDmDialog";
 import ThreadPanel from "../components/ThreadPanel";
 import { useChatSocket } from "../hooks/useChatSocket";
 import { useDesktopNotifications } from "../lib/notifications";
+import { usePresence } from "../context/PresenceContext";
 
 export default function ChatPage() {
     const { user, token } = useAuth();
@@ -144,10 +145,15 @@ export default function ChatPage() {
         channelsById,
         activeChannelId: activeChannel?.id,
     });
+    const { applyWsEvent: applyPresenceEvent } = usePresence();
 
     const handleWsEvent = useCallback(
         (evt) => {
             if (!evt || !evt.type) return;
+            if (evt.type === "presence:update") {
+                applyPresenceEvent(evt);
+                return;
+            }
             if (evt.type === "message:new") {
                 const m = evt.message;
                 if (!m) return;
@@ -234,7 +240,7 @@ export default function ChatPage() {
                 notify({ type: "message:new", message: evt.reply });
             }
         },
-        [user?.role, user?.id, markChannelRead, channelsById, notify]
+        [user?.role, user?.id, markChannelRead, channelsById, notify, applyPresenceEvent]
     );
 
     const { subscribe, unsubscribe, status } = useChatSocket({

@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { ImagePlus, Smile, SendHorizontal, X, Paperclip, AtSign } from "lucide-react";
 import { api, getErrorMessage } from "../lib/api";
 import GifPicker from "./GifPicker";
+import PresenceDot from "./PresenceDot";
 
 export default function MessageComposer({
     channelId,
@@ -191,8 +192,13 @@ export default function MessageComposer({
                             }`}
                             data-testid={`mention-option-${u.email}`}
                         >
-                            <div className="w-7 h-7 bg-ink text-white flex items-center justify-center font-heading font-bold text-xs">
-                                {(u.name || u.email).slice(0, 2).toUpperCase()}
+                            <div className="relative shrink-0">
+                                <div className="w-7 h-7 bg-ink text-white flex items-center justify-center font-heading font-bold text-xs">
+                                    {(u.name || u.email).slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="absolute -bottom-0.5 -right-0.5">
+                                    <PresenceDot userId={u.id} size="xs" />
+                                </div>
                             </div>
                             <div className="min-w-0">
                                 <div className="text-sm font-bold truncate">{u.name}</div>

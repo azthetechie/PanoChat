@@ -1,0 +1,42 @@
+{
+  "summary": "Iter-6 (presence indicator + sender-domain validation) fully verified. Backend: 8 new iter6 tests PASS + 89 regression tests (iter1-5) PASS = 97/97. Presence proven end-to-end: GET /api/presence auth'd returns {online:[...]}, caller appears after WS connect; a NEW WS for user A broadcasts presence:update{online:true} to ALL connected sockets (observed from a separate admin observer socket); TWO sockets for the same user: connecting the 2nd does NOT emit a duplicate online, closing the first of two does NOT emit offline, closing the last DOES emit offline — all transitions (0<->1) honored as designed via manager.set_presence_callback + broadcast_all. validate_sender_domain() invoked directly returns the full dict without raising; startup log confirms 'using Resend test sender' (SENDER_EMAIL=onboarding@resend.dev). DM race regression (iter5): two concurrent POST /api/dms for the same (admin, ephemeral_user) pair return the SAME channel id, still holds after presence wiring. Frontend: logged in as admin, /api/presence returned admin id; opened New-DM modal — saw presence-dot-<admin_id>-online (green, next to 'OP') and presence-dot-<aaronId>-offline (gray) rendered; typing '@' in the composer also rendered presence dots in the mention popup (count=2). PresenceContext + PresenceDot are correctly wired in ChannelSidebar, NewDmDialog, MessageComposer, MessageList.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Chat composer (carryover from iter3-5)", "issues": ["Emergent preview badge (#emergent-badge bottom-right) still intercepts pointer events at (x:1770,y:1040). Real users unaffected; Playwright needs force=True. Not a functional bug."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter6.py",
+    "/app/backend/tests/test_iter5.py",
+    "/app/backend/tests/test_iter4.py",
+    "/app/backend/tests/test_unread.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_iter6.xml",
+    "/app/test_reports/pytest/pytest_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ws_manager.py: presence callback fires only on 0->1 and 1->0 transitions — correct. broadcast_all iterates snapshot of ws_meta keys and cleans up dead sockets via disconnect() — safe.",
+    "routes/presence.py: minimal and idiomatic; GET auth'd via Depends(get_current_user). Returns only ids; frontend must already know user metadata (OK — users list is cached).",
+    "routes/websocket.py: disconnect is now awaited (required — manager.disconnect became async because it invokes the presence callback). Both WebSocketDisconnect and generic Exception branches await disconnect — good.",
+    "email_service.validate_sender_domain: clean, never raises, returns a well-typed dict; called via asyncio.to_thread on startup so it doesn't block the event loop. Consider caching the result in app.state so an admin-only '/api/email/health' endpoint can surface the warning in the UI instead of only logs.",
+    "PresenceContext polls every 30s as a safety net — good defensive behavior. Could optionally flush `online` to empty on auth logout (currently relies on provider unmount via enabled=false; verified works).",
+    "PresenceDot renders a border-2 border-white dot; on a dark avatar ring the green reads well, but the offline color `bg-muted-foreground` on a muted background may be low-contrast in some themes — minor.",
+    "Two WS connections per user: frontend currently opens one WS in ChatPage; multi-tab scenarios naturally create 2+ sockets — ConnectionManager handles these correctly, verified by test.",
+    "DMs POST /api/dms uses `user_id` in body (not `other_user_id`) — test_credentials.md doesn't document DM endpoints; consider adding a short section."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter6.py (new — 9 tests, 8 pass 1 skip)"
+  ],
+  "success_rate": {"backend": "100% (97/97 — 8 new iter6 + 13 iter5 + 17 iter4 + 9 unread + 50 iter1-2; 1 iter6 skipped by design when SENDER_EMAIL not resend.dev in the pytest env)", "frontend": "100% for presence-specific checks (admin presence dot green in New-DM, offline dot gray for other user, mention popup renders dots). Login, sidebar, composer all functional."},
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 — unchanged. Admin password NOT modified. No admin-state mutations persisted.",
+  "seed_data_creation": "One ephemeral user created and DELETED per test module (email prefix iter6presence_<hex6>@example.com). One DM channel is created between admin and the ephemeral user during DM-race regression — this leaves a stale DM in admin's DM list for the brief moment before user deletion cascades. Aaron F (aaron.fitzell@gmail.com) is a pre-existing seed/test user — not touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter-6 is green. To reuse the WS fixtures: test_iter6.py connects via ws://localhost:8001/api/ws?token=<access_token> (preview ingress at wss://admin-chat-control... also works but ssl handshake is slower in tests). Presence offline event must be asserted within a ~3s window after .close() — ws_manager.disconnect runs in the websocket_endpoint's except branch so the client-side close().await completes before the server emits. For two-sockets-same-user tests, keep the observer socket open outside the context managers so it can still receive the late offline event. If future work adds admin presence-health endpoint, surface the validate_sender_domain dict there.",
+  "rca of the issue": "No blocking issue. Observations only: (1) test scaffold initially posted role='member' — API expects Literal['admin','user']; fixed to 'user'. (2) DM open endpoint is POST /api/dms (not /api/dms/open) and body field is `user_id` (not `other_user_id`); adjusted. Neither is a product bug."
+}

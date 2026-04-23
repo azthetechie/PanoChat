@@ -42,9 +42,9 @@ async def websocket_endpoint(websocket: WebSocket):
             elif action == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
     except Exception:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
         try:
             await websocket.close()
         except Exception:
