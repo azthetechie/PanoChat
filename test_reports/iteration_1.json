@@ -1,0 +1,68 @@
+{
+  "summary": "Backend-only test pass for Panorama Comms. 38/38 pytest tests passing covering auth (login/me/logout/refresh/change-password), user CRUD with self-protection, channel CRUD with public/private membership and cascade delete, messages with hide/unhide masking + moderation search + permission-based delete, uploads (PNG accept, EXE reject, file serve), Giphy search & trending using the real key, WebSocket auth/subscribe/broadcast against localhost, and brute-force lockout against localhost. Public-URL CORS works (cookies set successfully cross-origin). One important production-grade bug found: brute-force lockout does not engage when traffic flows through the Kubernetes ingress because per-IP counter uses request.client.host (the upstream pod IP) instead of X-Forwarded-For.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/auth/login",
+        "issue": "Brute-force lockout never triggers behind the Kubernetes ingress / any reverse proxy. The counter is keyed on `request.client.host` (auth.py login_route + auth.check_brute_force), which behind ingress is the upstream pod IP and varies per request (observed two distinct entries 10.64.129.166 and 10.64.130.9 each capped at count=4 after 8 attempts). Real-world attackers will never be locked out. Fix: read the real client IP from `X-Forwarded-For` (first hop) or `X-Real-IP` and fall back to `request.client.host`. This is a security-critical regression of the requested feature.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "auth.record_failed_login",
+        "issue": "After exactly MAX_FAILED (5) failures the code sets `count = 0` along with `locked_until`. If the lockout window passes without a successful login that clears the entry, the user effectively gets another full 5 attempts before the next lockout (count starts from 0 again). Consider keeping count or letting the document TTL out, or set count to MAX_FAILED so the next failure re-locks immediately."
+      },
+      {
+        "endpoint": "GET /api/messages/channel/{id}",
+        "issue": "Pagination uses string compare on ISO timestamps via `created_at < before`. That works only because the timestamp format is fixed-length ISO8601 with timezone. Acceptable, just brittle; documenting in case a future change to created_at format breaks pagination silently."
+      },
+      {
+        "endpoint": "POST /api/uploads/image",
+        "issue": "Validation is by file extension only; no magic-byte/MIME check. A renamed `.png` could carry arbitrary bytes. Low-risk for a closed business chat but worth noting."
+      },
+      {
+        "endpoint": "CORS configuration (server.py)",
+        "issue": "CORS_ORIGINS=\"*\" in .env is treated as wildcard which is incompatible with `allow_credentials=True`; current code falls back to FRONTEND_URL. That fallback works, but the `.env` value is misleading - recommend updating CORS_ORIGINS to the explicit FRONTEND_URL to avoid future confusion."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix brute-force per-IP tracking to honor X-Forwarded-For when behind a proxy (auth.py login). Suggested: helper `def get_real_ip(request): return (request.headers.get('x-forwarded-for') or '').split(',')[0].strip() or (request.headers.get('x-real-ip') or '') or (request.client.host if request.client else 'unknown')`.",
+    "Optionally also key brute-force on email-only as a secondary guard so that distributed-IP attacks still get throttled.",
+    "Consider replacing CORS_ORIGINS=\"*\" in backend/.env with the explicit FRONTEND_URL so config matches behavior."
+  ],
+  "critical_code_review_comments": [
+    "Security: brute-force counter ineffective behind ingress (see action_items).",
+    "Auth: bcrypt hash format $2b$ verified (verify_password works against seeded admin).",
+    "DB: all queries exclude `_id` via projection - good.",
+    "Models: UUID-based IDs everywhere, no ObjectId leaks - good.",
+    "Routes are well-modularised, no file >200 lines, no DRY violations spotted.",
+    "WebSocket: graceful disconnect handling and per-channel subscribe pattern looks correct; broadcast confirmed working end-to-end.",
+    "Seed: `seed_admin_and_defaults` correctly updates existing admin password if it differs from .env (verified by bcrypt verify_password)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/conftest.py"
+  ],
+  "success_rate": {
+    "backend": "100% (38/38 pytest, with brute-force tested against localhost since ingress masks client IP - documented as separate bug)",
+    "frontend": "not tested (per request)"
+  },
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 (works).",
+  "seed_data_creation": "Tests create ephemeral users (test_<uuid>@example.com) and channels (test-pub-*, test-priv-*, test-cascade-*) and clean them up via fixture teardown. login_attempts collection was cleared once during debugging.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All backend endpoints verified end-to-end against the public preview URL except WebSocket which is tested against http://localhost:8001 (ingress may or may not forward WS - public WS not validated). The pytest file at /app/backend/tests/backend_test.py is fully self-contained and idempotent. Frontend is the next testing pass. Known unresolved backend bug: brute-force lockout doesn't trigger via the public URL because of upstream-IP load balancing; fix needs to land in /app/backend/auth.py before retesting.",
+  "rca of the issue": "Brute-force lockout RCA: `auth_routes.login` builds `identifier = f\"{client_ip}:{email}\"` where `client_ip = request.client.host`. Through the K8s ingress, FastAPI sees the ingress pod's IP, not the real client IP. Multiple ingress pods (observed: 10.64.129.166 and 10.64.130.9) round-robin requests, so the counter gets split across N entries that each top out below the MAX_FAILED=5 threshold. Reproduction: 8 wrong logins from one client to the public URL → 8x 401 (no 429); MongoDB `login_attempts` shows two docs, each with count=4. Mitigation: parse `X-Forwarded-For`/`X-Real-IP` for real client IP, optionally add an email-only secondary counter."
+}

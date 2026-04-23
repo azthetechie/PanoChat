@@ -1,89 +1,88 @@
-from fastapi import FastAPI, APIRouter
+"""Main FastAPI app."""
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
-
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+import os  # noqa: E402
+import logging  # noqa: E402
+from fastapi import FastAPI, APIRouter  # noqa: E402
+from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
-# Create the main app without a prefix
-app = FastAPI()
+from db import init_db, ensure_indexes, close_db  # noqa: E402
+from seed import seed_admin_and_defaults  # noqa: E402
+from routes.auth_routes import router as auth_router  # noqa: E402
+from routes.users import router as users_router  # noqa: E402
+from routes.channels import router as channels_router  # noqa: E402
+from routes.messages import router as messages_router  # noqa: E402
+from routes.uploads import router as uploads_router  # noqa: E402
+from routes.giphy import router as giphy_router  # noqa: E402
+from routes.websocket import router as websocket_router  # noqa: E402
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("server")
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+app = FastAPI(title="Panorama Comms")
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
+# Build CORS origin list
+_origins_env = os.environ.get("CORS_ORIGINS", "*").strip()
+frontend_url = os.environ.get("FRONTEND_URL", "").strip()
+if _origins_env == "*" or not _origins_env:
+    # When credentials are required, "*" is not allowed. Fall back to FRONTEND_URL if set.
+    if frontend_url:
+        allow_origins = [frontend_url]
+    else:
+        allow_origins = ["http://localhost:3000"]
+else:
+    allow_origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
+    if frontend_url and frontend_url not in allow_origins:
+        allow_origins.append(frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=allow_origins,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+api_router = APIRouter(prefix="/api")
+
+
+@api_router.get("/")
+async def root():
+    return {"service": "panorama-comms", "status": "ok"}
+
+
+@api_router.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+api_router.include_router(auth_router)
+api_router.include_router(users_router)
+api_router.include_router(channels_router)
+api_router.include_router(messages_router)
+api_router.include_router(uploads_router)
+api_router.include_router(giphy_router)
+api_router.include_router(websocket_router)  # /api/ws
+
+app.include_router(api_router)
+
+
+@app.on_event("startup")
+async def on_startup():
+    init_db()
+    await ensure_indexes()
+    await seed_admin_and_defaults()
+    logger.info("Startup complete. Admin seeded. Indexes ensured.")
+
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+async def on_shutdown():
+    await close_db()
