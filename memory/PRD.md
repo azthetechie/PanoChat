@@ -37,18 +37,22 @@
 - Brute-force lockout working behind ingress (X-Forwarded-For + email-only counter) ✅
 - Users CRUD (admin) with self-protection (can't delete/demote/deactivate self) ✅
 - Channels CRUD (admin), members add/remove, archive ✅
+- **1:1 Direct Messages** — auto-created on first message; DMs excluded from channel list; separate sidebar section with last-message preview + unread ✅
 - Messages: create/list/delete, hide/unhide (admin), moderation search ✅
+- **@Mentions** — autocomplete popover in composer; `mentions_me_badge` + highlighted row + inline `@Name` styling ✅
+- **Reactions** — per-message emoji toggles (8-emoji quick picker); chips below message; realtime broadcast to all subscribers ✅
+- **Desktop notifications** — browser Notifications API, opt-in from Profile, ping only for DMs + @mentions when the tab is unfocused ✅
 - File uploads (PNG/JPG/GIF/WebP, 15MB cap) + static serving ✅
 - Giphy search + trending ✅
-- WebSocket real-time broadcasts (message:new, :hidden, :unhidden, :deleted) ✅
-- Profile page (name, avatar, password change, reset-link request) ✅
+- WebSocket real-time broadcasts (message:new, :hidden, :unhidden, :deleted, :reactions) ✅
+- Profile page (name, avatar, password change, reset-link request, notifications toggle) ✅
 - Admin Branding tab (logo + hero image + copy + live preview) ✅
-- **Unread counters** per channel (sidebar badge; auto-mark-read on open/focus/send) ✅
-- **Mobile-friendly layout** (off-canvas sidebar drawer + hamburger; admin tabs horizontal-scroll; responsive headers) ✅
+- Unread counters per channel + DM (sidebar badge; auto-mark-read on open/focus/send) ✅
+- Mobile-friendly layout (off-canvas sidebar drawer + hamburger; admin tabs horizontal-scroll; responsive headers) ✅
 - Swiss Brutalist UI (Bricolage Grotesque + Manrope, #FF5A00 signal, rounded-none) ✅
 - Docker: Dockerfile.backend, Dockerfile.frontend (nginx with WS proxy), docker-compose.yml, .env.example ✅
 - README-SELFHOST.md with first-login + production tips ✅
-- Backend tests: 59/59 pytest passing ✅
+- Backend tests: 76/76 pytest passing ✅
 - Frontend E2E: comprehensive Playwright coverage ✅
 
 ### Not implemented (deferred)

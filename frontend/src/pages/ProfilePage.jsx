@@ -47,6 +47,7 @@ export default function ProfilePage() {
                     }}
                 />
                 <PasswordChange />
+                <NotificationsSection />
                 <PasswordResetRequest email={user.email} />
             </main>
         </div>
