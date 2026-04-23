@@ -152,32 +152,53 @@ MAX_FAILED = 5
 LOCKOUT_MINUTES = 15
 
 
-async def check_brute_force(db, identifier: str) -> None:
-    entry = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
-    if entry and entry.get("locked_until"):
-        locked_until = entry["locked_until"]
-        if isinstance(locked_until, str):
-            locked_until = datetime.fromisoformat(locked_until)
-        if locked_until > datetime.now(timezone.utc):
-            remaining = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60) + 1
-            raise HTTPException(
-                status_code=429,
-                detail=f"Too many failed attempts. Try again in {remaining} minute(s).",
-            )
+def get_real_ip(request: Request) -> str:
+    """Return the real client IP honoring X-Forwarded-For / X-Real-IP."""
+    xff = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    if xff:
+        return xff
+    xri = (request.headers.get("x-real-ip") or "").strip()
+    if xri:
+        return xri
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
 
 
-async def record_failed_login(db, identifier: str) -> None:
+def brute_force_identifiers(request: Request, email: str) -> list[str]:
+    """Return a list of identifiers to track: (ip:email) and (email) as fallback."""
+    ip = get_real_ip(request)
+    return [f"ip:{ip}:{email}", f"email:{email}"]
+
+
+async def check_brute_force(db, identifiers: list[str]) -> None:
+    for identifier in identifiers:
+        entry = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
+        if entry and entry.get("locked_until"):
+            locked_until = entry["locked_until"]
+            if isinstance(locked_until, str):
+                locked_until = datetime.fromisoformat(locked_until)
+            if locked_until > datetime.now(timezone.utc):
+                remaining = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60) + 1
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Too many failed attempts. Try again in {remaining} minute(s).",
+                )
+
+
+async def record_failed_login(db, identifiers: list[str]) -> None:
     now = datetime.now(timezone.utc)
-    entry = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
-    count = (entry.get("count", 0) if entry else 0) + 1
-    update = {"identifier": identifier, "count": count, "last_attempt": now.isoformat()}
-    if count >= MAX_FAILED:
-        update["locked_until"] = (now + timedelta(minutes=LOCKOUT_MINUTES)).isoformat()
-        update["count"] = 0
-    await db.login_attempts.update_one(
-        {"identifier": identifier}, {"$set": update}, upsert=True
-    )
+    for identifier in identifiers:
+        entry = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
+        count = (entry.get("count", 0) if entry else 0) + 1
+        update = {"identifier": identifier, "count": count, "last_attempt": now.isoformat()}
+        if count >= MAX_FAILED:
+            update["locked_until"] = (now + timedelta(minutes=LOCKOUT_MINUTES)).isoformat()
+            update["count"] = MAX_FAILED  # keep at max so next failure re-locks immediately
+        await db.login_attempts.update_one(
+            {"identifier": identifier}, {"$set": update}, upsert=True
+        )
 
 
-async def clear_failed_login(db, identifier: str) -> None:
-    await db.login_attempts.delete_one({"identifier": identifier})
+async def clear_failed_login(db, identifiers: list[str]) -> None:
+    await db.login_attempts.delete_many({"identifier": {"$in": identifiers}})

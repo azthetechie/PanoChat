@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Hash, Lock, Archive, Plus, Shield, LogOut, User } from "lucide-react";
+import { Hash, Lock, Archive, Plus, Shield, LogOut, User, UserCog } from "lucide-react";
 
 export default function ChannelSidebar({
     channels,
@@ -89,6 +89,14 @@ export default function ChannelSidebar({
                         Admin console
                     </button>
                 )}
+                <button
+                    className="btn-ghost w-full flex items-center justify-center gap-2"
+                    onClick={() => navigate("/profile")}
+                    data-testid="open-profile-button"
+                >
+                    <UserCog className="w-4 h-4" />
+                    Profile & security
+                </button>
                 <div className="flex items-center gap-3 px-1 pt-1">
                     <div className="w-8 h-8 bg-ink text-white flex items-center justify-center">
                         <User className="w-4 h-4" />

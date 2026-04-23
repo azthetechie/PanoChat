@@ -594,3 +594,316 @@ class TestWebSocket:
                 return got_event
 
         assert asyncio.run(run()), "Did not receive message:new broadcast"
+
+
+# ---------- Brute force via PUBLIC URL (regression for X-Forwarded-For fix) ----------
+
+class TestBruteForcePublic:
+    def test_brute_force_lock_after_5_failures_via_public_url(self):
+        """5 wrong logins through the public URL should result in 429 on attempt 6.
+        Previously failed because per-IP counter used request.client.host (upstream
+        ingress pod IP). Now should honor X-Forwarded-For/X-Real-IP."""
+        email = f"bf_pub_{uuid.uuid4().hex[:8]}@example.com"
+        s = requests.Session()
+        statuses = []
+        for i in range(7):
+            r = s.post(
+                f"{BASE_URL}/api/auth/login",
+                json={"email": email, "password": "WRONG"},
+                timeout=15,
+            )
+            statuses.append(r.status_code)
+            if r.status_code == 429:
+                break
+        assert 429 in statuses, f"Expected 429 lockout via public URL, got: {statuses}"
+        # Should be locked at exactly attempt 6 (index 5)
+        first_429 = statuses.index(429)
+        assert first_429 == 5, f"Expected first 429 at attempt 6, got at attempt {first_429+1}: {statuses}"
+
+    def test_brute_force_email_secondary_blocks_across_ips(self):
+        """Even with different X-Forwarded-For values, the email-only secondary
+        counter should still throttle distributed attacks."""
+        email = f"bf_email_{uuid.uuid4().hex[:8]}@example.com"
+        statuses = []
+        for i in range(7):
+            # Use a different fake IP each time to defeat the ip:email counter
+            fake_ip = f"203.0.113.{i+1}"
+            r = requests.post(
+                f"{BASE_URL}/api/auth/login",
+                json={"email": email, "password": "WRONG"},
+                headers={"X-Forwarded-For": fake_ip, "Content-Type": "application/json"},
+                timeout=15,
+            )
+            statuses.append(r.status_code)
+            if r.status_code == 429:
+                break
+        # NOTE: ingress will overwrite/append to X-Forwarded-For, so the *real*
+        # X-Forwarded-For seen by the app may not equal fake_ip. The point of
+        # this test is that the email-only counter must still trip 429 within 7 attempts.
+        assert 429 in statuses, f"Email-only secondary lockout did not trigger: {statuses}"
+
+
+# ---------- Profile update PUT /api/auth/me ----------
+
+class TestProfileUpdate:
+    def test_update_my_name_and_avatar(self, admin_session):
+        # Capture original to restore later
+        original_name = admin_session.admin_user.get("name")
+        new_name = f"Admin {uuid.uuid4().hex[:6]}"
+        new_avatar = "https://example.com/avatar.png"
+
+        r = admin_session.put(
+            f"{BASE_URL}/api/auth/me",
+            json={"name": new_name, "avatar_url": new_avatar},
+            timeout=15,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["name"] == new_name
+        assert body["avatar_url"] == new_avatar
+        assert "password_hash" not in body
+
+        # Verify persistence via GET /api/auth/me
+        g = admin_session.get(f"{BASE_URL}/api/auth/me", timeout=15)
+        assert g.status_code == 200
+        assert g.json()["name"] == new_name
+        assert g.json()["avatar_url"] == new_avatar
+
+        # Restore
+        if original_name:
+            r2 = admin_session.put(
+                f"{BASE_URL}/api/auth/me",
+                json={"name": original_name, "avatar_url": None},
+                timeout=15,
+            )
+            assert r2.status_code == 200
+
+    def test_update_me_requires_auth(self):
+        r = requests.put(
+            f"{BASE_URL}/api/auth/me",
+            json={"name": "anon"},
+            timeout=10,
+        )
+        assert r.status_code == 401
+
+
+# ---------- Change password validation ----------
+
+class TestChangePasswordValidation:
+    def test_change_password_wrong_current_rejected(self, admin_session):
+        r = admin_session.post(
+            f"{BASE_URL}/api/auth/change-password",
+            json={"current_password": "definitely-not-the-password", "new_password": "newPW123!"},
+            timeout=15,
+        )
+        assert r.status_code == 400, r.text
+        # Admin password unchanged: verify login still works
+        s = requests.Session()
+        chk = s.post(
+            f"{BASE_URL}/api/auth/login",
+            json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
+            timeout=15,
+        )
+        assert chk.status_code == 200
+
+
+# ---------- Forgot / reset password ----------
+
+class TestForgotResetPassword:
+    def test_forgot_password_always_ok(self):
+        # existing email
+        r1 = requests.post(
+            f"{BASE_URL}/api/auth/forgot-password",
+            json={"email": ADMIN_EMAIL},
+            timeout=15,
+        )
+        assert r1.status_code == 200
+        assert r1.json().get("ok") is True
+        # non-existent email -> still ok (no user enumeration)
+        r2 = requests.post(
+            f"{BASE_URL}/api/auth/forgot-password",
+            json={"email": f"noone_{uuid.uuid4().hex[:6]}@example.com"},
+            timeout=15,
+        )
+        assert r2.status_code == 200
+        assert r2.json().get("ok") is True
+
+    def test_reset_password_full_flow(self, admin_session):
+        """Create a temp user -> trigger forgot-password -> grab the latest unused
+        token from the DB via the admin API surface (we use Mongo directly through
+        a small in-process helper since there's no /admin/tokens endpoint)."""
+        # Create a temp user via admin
+        email = f"reset_{uuid.uuid4().hex[:8]}@example.com"
+        original_pw = "ResetMe123!"
+        new_pw = "ResetMeBetter456!"
+
+        cu = admin_session.post(
+            f"{BASE_URL}/api/users",
+            json={"email": email, "password": original_pw, "name": "Reset User", "role": "user"},
+            timeout=15,
+        )
+        assert cu.status_code in (200, 201), cu.text
+        user_id = cu.json()["id"]
+
+        try:
+            # Trigger forgot-password
+            fp = requests.post(
+                f"{BASE_URL}/api/auth/forgot-password",
+                json={"email": email},
+                timeout=15,
+            )
+            assert fp.status_code == 200
+
+            # Read the token directly from MongoDB (test helper)
+            import asyncio as _asyncio
+            from motor.motor_asyncio import AsyncIOMotorClient
+            from dotenv import load_dotenv as _ld
+            _ld("/app/backend/.env")
+
+            async def fetch_token():
+                client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+                db = client[os.environ["DB_NAME"]]
+                doc = await db.password_reset_tokens.find_one(
+                    {"user_id": user_id, "used": False},
+                    sort=[("created_at", -1)],
+                )
+                client.close()
+                return doc
+
+            doc = _asyncio.run(fetch_token())
+            assert doc is not None and doc.get("token"), "No reset token found in DB"
+            token = doc["token"]
+
+            # Reset with valid token
+            rp = requests.post(
+                f"{BASE_URL}/api/auth/reset-password",
+                json={"token": token, "new_password": new_pw},
+                timeout=15,
+            )
+            assert rp.status_code == 200, rp.text
+
+            # Old password no longer works
+            old = requests.post(
+                f"{BASE_URL}/api/auth/login",
+                json={"email": email, "password": original_pw},
+                timeout=15,
+            )
+            assert old.status_code == 401
+
+            # New password works
+            new_login = requests.post(
+                f"{BASE_URL}/api/auth/login",
+                json={"email": email, "password": new_pw},
+                timeout=15,
+            )
+            assert new_login.status_code == 200, new_login.text
+
+            # Re-using the same token should fail (used)
+            reuse = requests.post(
+                f"{BASE_URL}/api/auth/reset-password",
+                json={"token": token, "new_password": "another1"},
+                timeout=15,
+            )
+            assert reuse.status_code == 400
+
+        finally:
+            admin_session.delete(f"{BASE_URL}/api/users/{user_id}", timeout=15)
+
+    def test_reset_password_invalid_token_rejected(self):
+        r = requests.post(
+            f"{BASE_URL}/api/auth/reset-password",
+            json={"token": "this-token-does-not-exist", "new_password": "whatever1"},
+            timeout=15,
+        )
+        assert r.status_code == 400
+
+
+# ---------- Branding ----------
+
+class TestBranding:
+    def test_get_branding_public_no_auth(self):
+        r = requests.get(f"{BASE_URL}/api/branding", timeout=15)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # Required keys regardless of whether saved or default
+        for k in ["brand_name", "tagline", "hero_heading", "hero_subheading", "logo_url", "hero_image_url"]:
+            assert k in body, f"missing branding key: {k}"
+
+    def test_put_branding_admin_updates_and_get_reflects(self, admin_session):
+        unique = uuid.uuid4().hex[:6]
+        payload = {
+            "brand_name": f"TEST_BRAND_{unique}",
+            "tagline": f"TEST tagline {unique}",
+            "hero_heading": f"TEST heading {unique}",
+            "hero_subheading": f"TEST subheading {unique}",
+            "logo_url": f"https://example.com/logo_{unique}.png",
+            "hero_image_url": f"https://example.com/hero_{unique}.jpg",
+        }
+        # Capture current to restore later
+        before = requests.get(f"{BASE_URL}/api/branding", timeout=15).json()
+
+        try:
+            r = admin_session.put(f"{BASE_URL}/api/branding", json=payload, timeout=15)
+            assert r.status_code == 200, r.text
+            body = r.json()
+            for k, v in payload.items():
+                assert body[k] == v, f"{k} not merged: {body.get(k)} != {v}"
+
+            # Verify via public GET
+            g = requests.get(f"{BASE_URL}/api/branding", timeout=15)
+            assert g.status_code == 200
+            for k, v in payload.items():
+                assert g.json()[k] == v
+
+            # Partial update only changes that field; others remain
+            partial = {"tagline": f"PARTIAL_{unique}"}
+            r2 = admin_session.put(f"{BASE_URL}/api/branding", json=partial, timeout=15)
+            assert r2.status_code == 200
+            merged = r2.json()
+            assert merged["tagline"] == partial["tagline"]
+            assert merged["brand_name"] == payload["brand_name"]  # unchanged
+        finally:
+            # Restore to whatever was there before this test
+            restore = {k: before.get(k) for k in payload.keys()}
+            # Filter out None so PUT doesn't error on "no fields"
+            restore = {k: v for k, v in restore.items() if v is not None}
+            if restore:
+                admin_session.put(f"{BASE_URL}/api/branding", json=restore, timeout=15)
+
+    def test_put_branding_non_admin_forbidden(self, admin_session):
+        # Create a non-admin user, login as them, attempt PUT
+        email = f"brand_user_{uuid.uuid4().hex[:6]}@example.com"
+        password = "BrandUser123!"
+        cu = admin_session.post(
+            f"{BASE_URL}/api/users",
+            json={"email": email, "password": password, "name": "Brand User", "role": "user"},
+            timeout=15,
+        )
+        assert cu.status_code in (200, 201)
+        uid = cu.json()["id"]
+        try:
+            ns = requests.Session()
+            ns.headers.update({"Content-Type": "application/json"})
+            login = ns.post(
+                f"{BASE_URL}/api/auth/login",
+                json={"email": email, "password": password},
+                timeout=15,
+            )
+            assert login.status_code == 200
+            ns.headers.update({"Authorization": f"Bearer {login.json()['access_token']}"})
+            r = ns.put(
+                f"{BASE_URL}/api/branding",
+                json={"brand_name": "HACKED"},
+                timeout=15,
+            )
+            assert r.status_code == 403, r.text
+        finally:
+            admin_session.delete(f"{BASE_URL}/api/users/{uid}", timeout=15)
+
+    def test_put_branding_unauth_blocked(self):
+        r = requests.put(
+            f"{BASE_URL}/api/branding",
+            json={"brand_name": "anon"},
+            timeout=10,
+        )
+        assert r.status_code == 401

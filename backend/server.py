@@ -19,6 +19,7 @@ from routes.messages import router as messages_router  # noqa: E402
 from routes.uploads import router as uploads_router  # noqa: E402
 from routes.giphy import router as giphy_router  # noqa: E402
 from routes.websocket import router as websocket_router  # noqa: E402
+from routes.branding import router as branding_router  # noqa: E402
 
 
 logging.basicConfig(
@@ -70,6 +71,7 @@ api_router.include_router(channels_router)
 api_router.include_router(messages_router)
 api_router.include_router(uploads_router)
 api_router.include_router(giphy_router)
+api_router.include_router(branding_router)
 api_router.include_router(websocket_router)  # /api/ws
 
 app.include_router(api_router)

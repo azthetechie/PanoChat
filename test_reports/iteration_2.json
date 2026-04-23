@@ -1,0 +1,66 @@
+{
+  "summary": "Backend-only regression + new-feature pass for Panorama Comms iteration 2. 50/50 pytest tests passing against the public preview URL (https://admin-chat-control.preview.emergentagent.com). The HIGH-priority brute-force-behind-ingress bug from iteration 1 is FIXED and verified end-to-end through the real ingress: 5 wrong logins now produce 429 on attempt 6 (per-IP via X-Forwarded-For), and a secondary email-only counter throttles distributed-IP attacks too. New endpoints verified: PUT /api/auth/me (name+avatar update with persistence), POST /api/auth/change-password (200 on correct current_password, 400 on wrong), POST /api/auth/forgot-password (always 200, no enumeration), POST /api/auth/reset-password (valid token works, used token rejected, invalid token rejected, full create→forgot→reset→login round-trip), GET /api/branding (public, returns defaults when nothing saved), PUT /api/branding (admin merges partial updates, non-admin 403, unauth 401). Full regression on prior endpoints (auth/users/channels/messages-with-hide/uploads/giphy/websocket) all green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "auth.record_failed_login",
+        "issue": "After successful lockout, count is now correctly pinned to MAX_FAILED so the next failure re-locks immediately - confirmed fixed in this iteration's auth.py."
+      },
+      {
+        "endpoint": "POST /api/auth/forgot-password",
+        "issue": "Reset link is only printed to backend stdout via print() - works for dev/self-host but should be wired to actual SMTP/SES in production. Not a regression, just a known TODO from the spec."
+      },
+      {
+        "endpoint": "POST /api/auth/change-password",
+        "issue": "No password-strength policy on new_password (Pydantic min_length=6 only via models? - change-password endpoint uses inline ChangePasswordRequest with no min_length validator). Recommend min_length=6 to match other password fields."
+      },
+      {
+        "endpoint": "POST /api/uploads/image",
+        "issue": "(carryover from iter1) Validation is by file extension only; no magic-byte/MIME check."
+      },
+      {
+        "endpoint": "CORS configuration (server.py)",
+        "issue": "(carryover) CORS_ORIGINS=\"*\" in .env is incompatible with allow_credentials=True; current code falls back to FRONTEND_URL which works but the env value is misleading."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add min_length=6 (or stronger policy) to ChangePasswordRequest.new_password in /app/backend/routes/auth_routes.py.",
+    "(Optional) Replace CORS_ORIGINS=\"*\" in backend/.env with the explicit FRONTEND_URL so config matches behavior.",
+    "(Optional) Wire forgot-password reset link to an actual SMTP/SES sender instead of only printing to stdout."
+  ],
+  "critical_code_review_comments": [
+    "Brute-force fix (auth.get_real_ip + brute_force_identifiers) is correct: parses X-Forwarded-For first hop, falls back to X-Real-IP then request.client.host. Verified working through K8s ingress.",
+    "Email-only secondary identifier (email:<email>) is a sound defense against distributed-IP attacks; lockouts share the same TTL/MAX_FAILED.",
+    "branding.update_branding correctly performs a deep merge with existing values and only persists allowed keys via Pydantic exclude_none, then upserts in settings collection - safe.",
+    "branding.GET intentionally public (no auth) so the login screen can render branding before auth - correct per spec.",
+    "auth_routes.update_my_profile uses model_dump(exclude_none=True) so passing null avatar_url won't accidentally clear the field — note: callers that DO want to clear avatar must send empty string, not null. Acceptable but worth documenting.",
+    "reset_password correctly checks (token exists) AND (not used) AND (not expired) AND marks used after consumption - no token replay possible.",
+    "All routes still use UUID ids; no _id leak; password_hash sanitized from /me, /login, PUT /me responses.",
+    "File sizes still healthy: auth.py 205 lines, auth_routes.py 192 lines, branding.py 61 lines - well under 700-line limit."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {
+    "backend": "100% (50/50 pytest, all run against the public preview URL except WebSocket which uses localhost)",
+    "frontend": "not tested (per request)"
+  },
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 (verified working).",
+  "seed_data_creation": "Tests create ephemeral users (test_*, reset_*, brand_user_*, bf_pub_*, bf_email_*@example.com) and channels (test-pub-*, test-priv-*, test-cascade-*) and clean up via fixtures. Branding values are captured before each PUT test and restored in finally blocks. login_attempts collection is cleared by the test runner before the brute-force suite.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All backend endpoints from iteration 1 + iteration 2 (PUT /auth/me, change-password, forgot/reset-password, GET/PUT /branding) are covered by /app/backend/tests/backend_test.py and pass 50/50 against the public preview URL. Brute-force lockout is now confirmed working through ingress (HIGH bug from iteration 1 closed). WebSocket is still tested against localhost because ingress may not pass WS upgrade. Note for next FE agent: branding GET is unauthenticated - safe to call from the Login screen pre-auth; PUT requires admin (403 for non-admin, 401 for unauth). PUT /auth/me only accepts name and avatar_url. Sending null avatar_url is treated as no-op (use empty string to clear).",
+  "rca of the issue": "Iteration-1 brute-force RCA was: identifier built from request.client.host (the upstream ingress pod IP) caused the per-IP counter to split across N rotating ingress pods, never reaching MAX_FAILED. Iteration-2 fix in /app/backend/auth.py introduces get_real_ip() (X-Forwarded-For first hop -> X-Real-IP -> request.client.host) and brute_force_identifiers() that returns BOTH 'ip:<real_ip>:<email>' AND 'email:<email>'. check_brute_force / record_failed_login / clear_failed_login now iterate the list. Verified in test_brute_force_lock_after_5_failures_via_public_url (status sequence: [401,401,401,401,401,429,...]) and test_brute_force_email_secondary_blocks_across_ips (varying X-Forwarded-For per attempt still produces 429 within 7 tries via the email-only secondary counter)."
+}

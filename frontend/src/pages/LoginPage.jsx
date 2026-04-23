@@ -1,20 +1,21 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useBranding, resolveAssetUrl } from "../context/BrandingContext";
 import { Lock, Mail, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
     const { login, user } = useAuth();
+    const { branding } = useBranding();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const navigate = useNavigate();
 
-    if (user && user !== false) {
-        // Already logged in
-        navigate("/", { replace: true });
-    }
+    useEffect(() => {
+        if (user && user !== false) navigate("/", { replace: true });
+    }, [user, navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -22,26 +23,39 @@ export default function LoginPage() {
         setSubmitting(true);
         const res = await login(email.trim().toLowerCase(), password);
         setSubmitting(false);
-        if (res.ok) {
-            navigate("/", { replace: true });
-        } else {
-            setError(res.error || "Login failed");
-        }
+        if (res.ok) navigate("/", { replace: true });
+        else setError(res.error || "Login failed");
     };
+
+    const logoUrl = resolveAssetUrl(branding.logo_url);
+    const heroUrl = resolveAssetUrl(branding.hero_image_url);
+    const brandName = branding.brand_name || "PANORAMA / COMMS";
+    const tagline = branding.tagline || "Internal comms · v1.0";
+    const heroHeading = branding.hero_heading || "Built for business, shipped to your server.";
+    const heroSubheading = branding.hero_subheading || "";
 
     return (
         <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2" data-testid="login-page">
             {/* Left: form */}
             <div className="flex flex-col justify-between p-8 md:p-12">
                 <div className="flex items-center gap-3" data-testid="brand-logo">
-                    <div className="w-10 h-10 bg-ink flex items-center justify-center">
-                        <div className="w-3 h-3 bg-signal" />
-                    </div>
-                    <div>
-                        <div className="font-heading font-extrabold text-lg tracking-tight leading-none">
-                            PANORAMA / COMMS
+                    {logoUrl ? (
+                        <img
+                            src={logoUrl}
+                            alt={brandName}
+                            className="h-10 w-10 object-contain border border-border bg-white"
+                            data-testid="brand-logo-image"
+                        />
+                    ) : (
+                        <div className="w-10 h-10 bg-ink flex items-center justify-center">
+                            <div className="w-3 h-3 bg-signal" />
                         </div>
-                        <div className="ticker-label text-muted-foreground">Internal comms · v1.0</div>
+                    )}
+                    <div>
+                        <div className="font-heading font-extrabold text-lg tracking-tight leading-none" data-testid="brand-name">
+                            {brandName}
+                        </div>
+                        <div className="ticker-label text-muted-foreground">{tagline}</div>
                     </div>
                 </div>
 
@@ -57,13 +71,9 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-5" data-testid="login-form">
                         <div>
-                            <label className="ticker-label block mb-2" htmlFor="email">
-                                Email
-                            </label>
+                            <label className="ticker-label block mb-2" htmlFor="email">Email</label>
                             <div className="flex items-center border border-ink">
-                                <div className="px-3 border-r border-ink">
-                                    <Mail className="w-4 h-4" />
-                                </div>
+                                <div className="px-3 border-r border-ink"><Mail className="w-4 h-4" /></div>
                                 <input
                                     id="email"
                                     data-testid="login-email-input"
@@ -72,19 +82,24 @@ export default function LoginPage() {
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="operations@panoramacoaches.com.au"
+                                    placeholder="you@company.com"
                                     className="flex-1 px-3 py-3 bg-white outline-none placeholder:text-muted-foreground"
                                 />
                             </div>
                         </div>
                         <div>
-                            <label className="ticker-label block mb-2" htmlFor="password">
-                                Password
-                            </label>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="ticker-label" htmlFor="password">Password</label>
+                                <Link
+                                    to="/forgot-password"
+                                    className="ticker-label text-signal hover:underline"
+                                    data-testid="forgot-password-link"
+                                >
+                                    Forgot?
+                                </Link>
+                            </div>
                             <div className="flex items-center border border-ink">
-                                <div className="px-3 border-r border-ink">
-                                    <Lock className="w-4 h-4" />
-                                </div>
+                                <div className="px-3 border-r border-ink"><Lock className="w-4 h-4" /></div>
                                 <input
                                     id="password"
                                     data-testid="login-password-input"
@@ -125,8 +140,19 @@ export default function LoginPage() {
                 </div>
             </div>
 
-            {/* Right: high-contrast hero panel */}
-            <div className="hidden lg:flex flex-col bg-ink text-white relative overflow-hidden">
+            {/* Right: high-contrast brandable panel */}
+            <div
+                className="hidden lg:flex flex-col bg-ink text-white relative overflow-hidden"
+                data-testid="login-hero-panel"
+            >
+                {heroUrl && (
+                    <div
+                        className="absolute inset-0 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${heroUrl})` }}
+                        data-testid="login-hero-image"
+                    />
+                )}
+                <div className="absolute inset-0 bg-ink/80" />
                 <div className="absolute inset-0 opacity-[0.08]">
                     <div className="w-full h-full hero-grid" />
                 </div>
@@ -141,9 +167,13 @@ export default function LoginPage() {
                     <div className="space-y-6">
                         <div className="h-px w-24 bg-signal" />
                         <div className="font-heading font-extrabold text-5xl tracking-tight leading-[0.95]">
-                            Built for <span className="text-signal">business</span>, <br />
-                            shipped to <span className="underline decoration-signal decoration-4 underline-offset-8">your</span> server.
+                            {heroHeading}
                         </div>
+                        {heroSubheading && (
+                            <div className="text-white/70 max-w-xl text-lg" data-testid="login-hero-subheading">
+                                {heroSubheading}
+                            </div>
+                        )}
                         <div className="grid grid-cols-3 gap-px bg-white/10 border border-white/10">
                             {[
                                 { k: "Channels", v: "Unlimited" },

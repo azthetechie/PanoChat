@@ -19,6 +19,7 @@ from auth import (
     check_brute_force,
     record_failed_login,
     clear_failed_login,
+    brute_force_identifiers,
 )
 from db import get_db
 from models import (
@@ -39,20 +40,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(payload: LoginRequest, request: Request, response: Response):
     db = get_db()
     email = payload.email.lower().strip()
-    client_ip = request.client.host if request.client else "unknown"
-    identifier = f"{client_ip}:{email}"
+    identifiers = brute_force_identifiers(request, email)
 
-    await check_brute_force(db, identifier)
+    await check_brute_force(db, identifiers)
 
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not verify_password(payload.password, user.get("password_hash", "")):
-        await record_failed_login(db, identifier)
+        await record_failed_login(db, identifiers)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.get("active", True):
         raise HTTPException(status_code=403, detail="Account deactivated. Contact your admin.")
 
-    await clear_failed_login(db, identifier)
+    await clear_failed_login(db, identifiers)
 
     access = create_access_token(user["id"], user["email"])
     refresh = create_refresh_token(user["id"])

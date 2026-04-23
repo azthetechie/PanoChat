@@ -30,12 +30,18 @@ async def seed_admin_and_defaults() -> None:
         )
     else:
         admin_id = existing["id"]
+        updates = {}
         # Keep password in sync with .env
         if not verify_password(admin_password, existing.get("password_hash", "")):
-            await db.users.update_one(
-                {"id": admin_id},
-                {"$set": {"password_hash": hash_password(admin_password), "role": "admin", "active": True}},
-            )
+            updates["password_hash"] = hash_password(admin_password)
+        # Always make sure the seed admin is an active admin
+        if existing.get("role") != "admin":
+            updates["role"] = "admin"
+        if not existing.get("active", True):
+            updates["active"] = True
+        # Don't overwrite the display name on re-seed — the user can edit it via /profile.
+        if updates:
+            await db.users.update_one({"id": admin_id}, {"$set": updates})
 
     # Seed a #general channel if no channels exist
     count = await db.channels.count_documents({})
