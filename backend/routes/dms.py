@@ -28,7 +28,8 @@ async def _get_or_create_dm(db, me: dict, other_id: str) -> dict:
     channel = await db.channels.find_one({"name": key, "type": "dm"}, {"_id": 0})
     if channel:
         return channel
-    channel = {
+
+    new_channel = {
         "id": new_id(),
         "name": key,
         "description": "",
@@ -39,8 +40,17 @@ async def _get_or_create_dm(db, me: dict, other_id: str) -> dict:
         "type": "dm",
         "created_at": now_iso(),
     }
-    await db.channels.insert_one(dict(channel))
-    return channel
+    from pymongo.errors import DuplicateKeyError  # local import to avoid top-level dep noise
+
+    try:
+        await db.channels.insert_one(dict(new_channel))
+        return new_channel
+    except DuplicateKeyError:
+        # Race: another request inserted first. Return the existing.
+        existing = await db.channels.find_one({"name": key, "type": "dm"}, {"_id": 0})
+        if existing:
+            return existing
+        raise HTTPException(status_code=500, detail="Could not create DM")
 
 
 async def _dm_to_public(

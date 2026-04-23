@@ -122,6 +122,7 @@ class MessageCreateRequest(BaseModel):
     content: str = Field(default="", max_length=4000)
     attachments: List[Attachment] = Field(default_factory=list)
     mentions: List[str] = Field(default_factory=list)  # user_ids mentioned
+    parent_id: Optional[str] = None  # top-level if None; reply-in-thread if set
 
 
 class ReactionRequest(BaseModel):
@@ -139,6 +140,9 @@ class MessagePublic(BaseModel):
     attachments: List[Attachment] = Field(default_factory=list)
     mentions: List[str] = Field(default_factory=list)
     reactions: dict = Field(default_factory=dict)  # {emoji: [user_id, ...]}
+    parent_id: Optional[str] = None
+    thread_reply_count: int = 0
+    thread_last_reply_at: Optional[str] = None
     hidden: bool = False
     hidden_by: Optional[str] = None
     hidden_at: Optional[str] = None

@@ -125,11 +125,13 @@ async def change_password(payload: ChangePasswordRequest, user: dict = Depends(g
 
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest):
-    """Generate a reset token (logged to server console; wire up email later)."""
+    """Generate a reset token and email it via Resend (if configured).
+    Always returns ok so we don't leak account existence."""
+    from email_service import send_password_reset
+
     db = get_db()
     email = payload.email.lower().strip()
     user = await db.users.find_one({"email": email}, {"_id": 0})
-    # Always return ok (don't leak existence)
     if user:
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -142,8 +144,16 @@ async def forgot_password(payload: ForgotPasswordRequest):
                 "created_at": now_iso(),
             }
         )
-        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-        print(f"[PASSWORD_RESET] Link for {email}: {frontend_url}/reset-password?token={token}")
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+        reset_link = f"{frontend_url}/reset-password?token={token}"
+
+        # Fire-and-forget email delivery (non-blocking from caller's POV)
+        branding_doc = await db.settings.find_one({"key": "branding"}, {"_id": 0})
+        brand_name = "Panorama Comms"
+        if branding_doc and isinstance(branding_doc.get("value"), dict):
+            brand_name = branding_doc["value"].get("brand_name") or brand_name
+        # Await the send; it already falls back to stdout log on failure.
+        await send_password_reset(to_email=email, reset_link=reset_link, brand_name=brand_name)
     return {"ok": True, "message": "If the email exists, a reset link has been generated."}
 
 

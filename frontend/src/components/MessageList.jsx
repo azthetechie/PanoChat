@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { EyeOff, Trash2, Smile } from "lucide-react";
+import { EyeOff, Trash2, Smile, MessageSquare } from "lucide-react";
 import { api } from "../lib/api";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "🚀", "👀", "🙏", "🔥"];
@@ -67,7 +67,7 @@ function renderContentWithMentions(content, mentionIds = [], usersById = {}) {
     return parts;
 }
 
-export default function MessageList({ messages, currentUser, onMessageUpdated, usersById = {} }) {
+export default function MessageList({ messages, currentUser, onMessageUpdated, usersById = {}, onOpenThread }) {
     const bottomRef = useRef(null);
 
     useEffect(() => {
@@ -154,6 +154,7 @@ export default function MessageList({ messages, currentUser, onMessageUpdated, u
                         onUnhide={handleUnhide}
                         onDelete={handleDelete}
                         onReact={handleReact}
+                        onOpenThread={onOpenThread}
                         usersById={usersById}
                     />
                 )
@@ -163,7 +164,7 @@ export default function MessageList({ messages, currentUser, onMessageUpdated, u
     );
 }
 
-function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete, onReact, usersById }) {
+function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete, onReact, onOpenThread, usersById }) {
     const hidden = m.hidden;
     const isOwn = m.user_id === currentUserId;
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -238,6 +239,19 @@ function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete, onR
                         })}
                     </div>
                 )}
+                {m.thread_reply_count > 0 && (
+                    <button
+                        onClick={() => onOpenThread?.(m)}
+                        className="mt-2 inline-flex items-center gap-2 px-2 py-1 border border-border hover:border-signal hover:text-signal text-xs transition-colors"
+                        data-testid={`open-thread-${m.id}`}
+                    >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="font-bold">
+                            {m.thread_reply_count} {m.thread_reply_count === 1 ? "reply" : "replies"}
+                        </span>
+                        <span className="text-muted-foreground">· view thread</span>
+                    </button>
+                )}
             </div>
             <div className="flex items-start gap-1 opacity-0 group-hover:opacity-100 transition-opacity relative">
                 <button
@@ -248,6 +262,16 @@ function MessageRow({ m, isAdmin, currentUserId, onHide, onUnhide, onDelete, onR
                 >
                     <Smile className="w-3.5 h-3.5" />
                 </button>
+                {onOpenThread && !hidden && (
+                    <button
+                        onClick={() => onOpenThread(m)}
+                        className="p-1.5 border border-border hover:border-ink"
+                        title="Reply in thread"
+                        data-testid={`reply-thread-${m.id}`}
+                    >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
+                )}
                 {pickerOpen && (
                     <div
                         className="absolute right-0 top-8 z-20 bg-white border border-ink p-1 flex gap-1 shadow-lg"

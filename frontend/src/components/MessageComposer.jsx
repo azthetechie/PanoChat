@@ -3,7 +3,14 @@ import { ImagePlus, Smile, SendHorizontal, X, Paperclip, AtSign } from "lucide-r
 import { api, getErrorMessage } from "../lib/api";
 import GifPicker from "./GifPicker";
 
-export default function MessageComposer({ channelId, disabled, onSent, allUsers = [] }) {
+export default function MessageComposer({
+    channelId,
+    disabled,
+    onSent,
+    allUsers = [],
+    parentId = null,
+    compact = false,
+}) {
     const [content, setContent] = useState("");
     const [attachments, setAttachments] = useState([]);
     const [uploading, setUploading] = useState(false);
@@ -104,11 +111,13 @@ export default function MessageComposer({ channelId, disabled, onSent, allUsers 
         if (!trimmed && attachments.length === 0) return;
         setError("");
         try {
-            const { data } = await api.post(`/messages/channel/${channelId}`, {
+            const body = {
                 content: trimmed,
                 attachments,
                 mentions: deriveMentionIds(),
-            });
+            };
+            if (parentId) body.parent_id = parentId;
+            const { data } = await api.post(`/messages/channel/${channelId}`, body);
             setContent("");
             setAttachments([]);
             setSelectedMentions([]);
@@ -237,20 +246,24 @@ export default function MessageComposer({ channelId, disabled, onSent, allUsers 
                     placeholder={
                         disabled
                             ? "Select a channel to start chatting…"
-                            : "Write a message. @ to mention. Enter to send, Shift+Enter for newline."
+                            : parentId
+                              ? "Reply to thread…"
+                              : "Write a message. @ to mention. Enter to send, Shift+Enter for newline."
                     }
-                    className="flex-1 border border-border focus:border-ink outline-none resize-none px-3 py-2 text-sm bg-white max-h-40 min-h-[42px]"
+                    className={`flex-1 border border-border focus:border-ink outline-none resize-none px-3 py-2 text-sm bg-white max-h-40 min-h-[42px] ${
+                        compact ? "text-sm" : ""
+                    }`}
                     disabled={disabled}
-                    data-testid="composer-textarea"
+                    data-testid={parentId ? "thread-composer-textarea" : "composer-textarea"}
                 />
                 <button
                     onClick={send}
                     disabled={disabled || uploading || (!content.trim() && attachments.length === 0)}
                     className="btn-signal flex items-center gap-2"
-                    data-testid="send-message-button"
+                    data-testid={parentId ? "thread-send-button" : "send-message-button"}
                 >
                     <SendHorizontal className="w-4 h-4" />
-                    <span className="hidden sm:inline">Send</span>
+                    <span className="hidden sm:inline">{parentId ? "Reply" : "Send"}</span>
                 </button>
             </div>
             {uploading && (

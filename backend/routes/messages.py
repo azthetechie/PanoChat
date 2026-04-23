@@ -42,7 +42,8 @@ async def list_messages(
 ):
     db = get_db()
     await _assert_channel_access(channel_id, user)
-    query = {"channel_id": channel_id}
+    # Only top-level messages (not thread replies)
+    query = {"channel_id": channel_id, "parent_id": None}
     if before:
         query["created_at"] = {"$lt": before}
     docs = (
@@ -53,6 +54,24 @@ async def list_messages(
     )
     docs.reverse()
     return [MessagePublic(**_prepare_message(d, user)) for d in docs]
+
+
+@router.get("/{message_id}/thread", response_model=List[MessagePublic])
+async def list_thread(message_id: str, user: dict = Depends(get_current_user)):
+    db = get_db()
+    parent = await db.messages.find_one({"id": message_id}, {"_id": 0})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Message not found")
+    await _assert_channel_access(parent["channel_id"], user)
+    replies = (
+        await db.messages.find(
+            {"parent_id": message_id}, {"_id": 0}
+        )
+        .sort("created_at", 1)
+        .to_list(1000)
+    )
+    out = [parent] + replies
+    return [MessagePublic(**_prepare_message(d, user)) for d in out]
 
 
 @router.post("/channel/{channel_id}", response_model=MessagePublic)
@@ -66,6 +85,20 @@ async def post_message(
     if not payload.content.strip() and not payload.attachments:
         raise HTTPException(status_code=400, detail="Empty message")
 
+    parent = None
+    if payload.parent_id:
+        parent = await db.messages.find_one(
+            {"id": payload.parent_id, "channel_id": channel_id}, {"_id": 0}
+        )
+        if not parent:
+            raise HTTPException(status_code=404, detail="Thread parent not found in this channel")
+        if parent.get("parent_id"):
+            # Flat threads: cannot reply to a reply; snap to the root
+            payload.parent_id = parent["parent_id"]
+            parent = await db.messages.find_one(
+                {"id": payload.parent_id, "channel_id": channel_id}, {"_id": 0}
+            )
+
     doc = {
         "id": new_id(),
         "channel_id": channel_id,
@@ -77,6 +110,9 @@ async def post_message(
         "attachments": [a.model_dump() for a in payload.attachments],
         "mentions": list({m for m in payload.mentions if m and m != user["id"]}),
         "reactions": {},
+        "parent_id": payload.parent_id,
+        "thread_reply_count": 0,
+        "thread_last_reply_at": None,
         "hidden": False,
         "hidden_by": None,
         "hidden_at": None,
@@ -84,8 +120,32 @@ async def post_message(
         "created_at": now_iso(),
     }
     await db.messages.insert_one(dict(doc))
-    # Broadcast
-    await manager.broadcast_channel(channel_id, {"type": "message:new", "message": doc})
+
+    if payload.parent_id and parent:
+        new_count = (parent.get("thread_reply_count") or 0) + 1
+        await db.messages.update_one(
+            {"id": payload.parent_id},
+            {
+                "$set": {
+                    "thread_reply_count": new_count,
+                    "thread_last_reply_at": doc["created_at"],
+                }
+            },
+        )
+        # Broadcast: thread reply (does not show in main list)
+        await manager.broadcast_channel(
+            channel_id,
+            {
+                "type": "thread:reply",
+                "parent_id": payload.parent_id,
+                "reply": doc,
+                "thread_reply_count": new_count,
+                "thread_last_reply_at": doc["created_at"],
+            },
+        )
+    else:
+        # Top-level message — normal broadcast
+        await manager.broadcast_channel(channel_id, {"type": "message:new", "message": doc})
     return MessagePublic(**doc)
 
 

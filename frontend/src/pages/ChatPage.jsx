@@ -8,6 +8,7 @@ import MessageList from "../components/MessageList";
 import MessageComposer from "../components/MessageComposer";
 import CreateChannelDialog from "../components/CreateChannelDialog";
 import NewDmDialog from "../components/NewDmDialog";
+import ThreadPanel from "../components/ThreadPanel";
 import { useChatSocket } from "../hooks/useChatSocket";
 import { useDesktopNotifications } from "../lib/notifications";
 
@@ -26,11 +27,18 @@ export default function ChatPage() {
     const [newDmOpen, setNewDmOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [unreadCounts, setUnreadCounts] = useState({});
+    const [threadParent, setThreadParent] = useState(null);
+    const [threadReplies, setThreadReplies] = useState([]);
     const activeChannelRef = useRef(activeChannel);
+    const threadParentRef = useRef(threadParent);
 
     useEffect(() => {
         activeChannelRef.current = activeChannel;
     }, [activeChannel]);
+
+    useEffect(() => {
+        threadParentRef.current = threadParent;
+    }, [threadParent]);
 
     const loadChannels = useCallback(async () => {
         try {
@@ -196,6 +204,34 @@ export default function ChatPage() {
                         m.id === evt.message_id ? { ...m, reactions: evt.reactions } : m
                     )
                 );
+                setThreadReplies((prev) =>
+                    prev.map((m) =>
+                        m.id === evt.message_id ? { ...m, reactions: evt.reactions } : m
+                    )
+                );
+                if (threadParentRef.current?.id === evt.message_id) {
+                    setThreadParent((p) => (p ? { ...p, reactions: evt.reactions } : p));
+                }
+            } else if (evt.type === "thread:reply") {
+                // Update parent counter in main list
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.id === evt.parent_id
+                            ? {
+                                  ...m,
+                                  thread_reply_count: evt.thread_reply_count,
+                                  thread_last_reply_at: evt.thread_last_reply_at,
+                              }
+                            : m
+                    )
+                );
+                // If the user has the thread open, append the reply
+                if (threadParentRef.current?.id === evt.parent_id && evt.reply) {
+                    setThreadReplies((prev) =>
+                        prev.some((x) => x.id === evt.reply.id) ? prev : [...prev, evt.reply]
+                    );
+                }
+                notify({ type: "message:new", message: evt.reply });
             }
         },
         [user?.role, user?.id, markChannelRead, channelsById, notify]
@@ -242,6 +278,8 @@ export default function ChatPage() {
     const selectChannel = (c) => {
         setActiveChannel({ ...c, type: c.type || "channel" });
         setSidebarOpen(false);
+        setThreadParent(null);
+        setThreadReplies([]);
     };
 
     const selectDm = (d) => {
@@ -255,7 +293,36 @@ export default function ChatPage() {
             archived: false,
         });
         setSidebarOpen(false);
+        setThreadParent(null);
+        setThreadReplies([]);
     };
+
+    const openThread = (m) => {
+        setThreadParent(m);
+        setThreadReplies([]);
+    };
+    const closeThread = () => {
+        setThreadParent(null);
+        setThreadReplies([]);
+    };
+    const onThreadReplyPosted = (reply) => {
+        setThreadReplies((prev) =>
+            prev.some((x) => x.id === reply.id) ? prev : [...prev, reply]
+        );
+        // Update parent counter in main list
+        setMessages((prev) =>
+            prev.map((m) =>
+                m.id === reply.parent_id
+                    ? {
+                          ...m,
+                          thread_reply_count: (m.thread_reply_count || 0) + 1,
+                          thread_last_reply_at: reply.created_at,
+                      }
+                    : m
+            )
+        );
+    };
+    const onThreadLoaded = (replies) => setThreadReplies(replies);
 
     const handleDmOpened = (dm) => {
         setDms((prev) => (prev.some((d) => d.id === dm.id) ? prev : [dm, ...prev]));
@@ -392,6 +459,7 @@ export default function ChatPage() {
                         currentUser={user}
                         onMessageUpdated={onMessageUpdated}
                         usersById={usersById}
+                        onOpenThread={openThread}
                     />
                 )}
 
@@ -402,6 +470,46 @@ export default function ChatPage() {
                     allUsers={allUsers}
                 />
             </main>
+
+            {/* Thread panel */}
+            {threadParent && (
+                <>
+                    {/* Mobile: full-screen drawer */}
+                    <div
+                        className="fixed inset-0 z-30 lg:hidden"
+                        data-testid="thread-drawer"
+                        onClick={closeThread}
+                    >
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+                        <div
+                            className="absolute inset-y-0 right-0 w-full max-w-md animate-in"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <ThreadPanel
+                                parent={threadParent}
+                                replies={threadReplies}
+                                currentUser={user}
+                                allUsers={allUsers}
+                                onClose={closeThread}
+                                onReplyPosted={onThreadReplyPosted}
+                                onReplyLoaded={onThreadLoaded}
+                            />
+                        </div>
+                    </div>
+                    {/* Desktop: side panel */}
+                    <div className="hidden lg:block h-full">
+                        <ThreadPanel
+                            parent={threadParent}
+                            replies={threadReplies}
+                            currentUser={user}
+                            allUsers={allUsers}
+                            onClose={closeThread}
+                            onReplyPosted={onThreadReplyPosted}
+                            onReplyLoaded={onThreadLoaded}
+                        />
+                    </div>
+                </>
+            )}
 
             {createOpen && (
                 <CreateChannelDialog

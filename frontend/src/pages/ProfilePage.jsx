@@ -2,12 +2,20 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, getErrorMessage } from "../lib/api";
-import { ArrowLeft, Check, User as UserIcon, Lock, MailCheck, Bell } from "lucide-react";
+import { ArrowLeft, Check, User as UserIcon, Lock, MailCheck, Bell, Moon, Clock } from "lucide-react";
 import {
     notificationsEnabled,
+    getNotificationPreference,
     requestNotificationPermission,
     setNotificationPreference,
     showDesktopNotification,
+    getMuteUntil,
+    setMuteUntil,
+    snoozeFor,
+    snoozeUntilTomorrowMorning,
+    getQuietHours,
+    setQuietHours,
+    isInQuietHours,
 } from "../lib/notifications";
 
 export default function ProfilePage() {
@@ -48,6 +56,7 @@ export default function ProfilePage() {
                 />
                 <PasswordChange />
                 <NotificationsSection />
+                <QuietHoursSection />
                 <PasswordResetRequest email={user.email} />
             </main>
         </div>
@@ -73,14 +82,16 @@ function Section({ title, kicker, icon, children }) {
 }
 
 function NotificationsSection() {
-    const [enabled, setEnabled] = useState(notificationsEnabled());
+    const [enabled, setEnabled] = useState(getNotificationPreference());
     const [perm, setPerm] = useState(
         typeof Notification !== "undefined" ? Notification.permission : "default"
     );
-
+    // tick so "active now?" chip re-renders
+    const [, setTick] = useState(0);
     useEffect(() => {
-        setEnabled(notificationsEnabled());
-    }, [perm]);
+        const t = setInterval(() => setTick((n) => n + 1), 30_000);
+        return () => clearInterval(t);
+    }, []);
 
     const onToggle = async () => {
         if (typeof Notification === "undefined") return;
@@ -99,15 +110,31 @@ function NotificationsSection() {
     };
 
     const unsupported = typeof Notification === "undefined";
+    const activeNow = notificationsEnabled();
 
     return (
         <Section title="Desktop notifications" kicker="// PING ME" icon={Bell}>
-            <div className="flex items-start justify-between gap-4">
-                <p className="text-sm text-muted-foreground max-w-xl">
-                    Get a browser notification for new <span className="font-bold">DMs</span> and{" "}
-                    <span className="font-bold">@mentions</span> when this tab is not focused.
-                    No notification for regular channel chatter — only what matters.
-                </p>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="max-w-xl">
+                    <p className="text-sm text-muted-foreground">
+                        Get a browser notification for new <span className="font-bold">DMs</span> and{" "}
+                        <span className="font-bold">@mentions</span> when this tab is not focused.
+                        No notification for regular channel chatter — only what matters.
+                    </p>
+                    <div className="mt-3 flex items-center gap-2 text-xs">
+                        <span
+                            className={`w-2 h-2 ${activeNow ? "bg-green-600" : "bg-muted-foreground"}`}
+                            data-testid="notifications-status-dot"
+                        />
+                        <span className="ticker-label" data-testid="notifications-status-label">
+                            {enabled
+                                ? activeNow
+                                    ? "active now"
+                                    : "enabled · paused by quiet hours or snooze"
+                                : "disabled"}
+                        </span>
+                    </div>
+                </div>
                 <button
                     onClick={onToggle}
                     disabled={unsupported || perm === "denied"}
@@ -122,6 +149,157 @@ function NotificationsSection() {
                             ? "Enabled"
                             : "Enable"}
                 </button>
+            </div>
+        </Section>
+    );
+}
+
+function QuietHoursSection() {
+    const [muteUntil, setMuteUntilState] = useState(getMuteUntil());
+    const [qh, setQh] = useState(getQuietHours());
+    const [savedMsg, setSavedMsg] = useState("");
+
+    useEffect(() => {
+        const t = setInterval(() => {
+            const next = getMuteUntil();
+            setMuteUntilState((prev) => (prev?.getTime?.() === next?.getTime?.() ? prev : next));
+        }, 10_000);
+        return () => clearInterval(t);
+    }, []);
+
+    const snooze = (ms) => {
+        snoozeFor(ms);
+        setMuteUntilState(getMuteUntil());
+    };
+    const snoozeTomorrow = () => {
+        snoozeUntilTomorrowMorning();
+        setMuteUntilState(getMuteUntil());
+    };
+    const clear = () => {
+        setMuteUntil(null);
+        setMuteUntilState(null);
+    };
+    const saveQh = () => {
+        setQuietHours(qh);
+        setSavedMsg("Saved.");
+        setTimeout(() => setSavedMsg(""), 1500);
+    };
+
+    const muteLabel = muteUntil
+        ? `Muted until ${muteUntil.toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}`
+        : "Not snoozed";
+    const inQuiet = isInQuietHours();
+
+    return (
+        <Section title="Mute & quiet hours" kicker="// DO NOT DISTURB" icon={Moon}>
+            <div className="space-y-6">
+                {/* One-off snooze */}
+                <div>
+                    <div className="ticker-label mb-2">Snooze notifications</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            className="btn-ghost text-sm"
+                            onClick={() => snooze(60 * 60 * 1000)}
+                            data-testid="snooze-1h-button"
+                        >
+                            1 hour
+                        </button>
+                        <button
+                            className="btn-ghost text-sm"
+                            onClick={() => snooze(8 * 60 * 60 * 1000)}
+                            data-testid="snooze-8h-button"
+                        >
+                            8 hours
+                        </button>
+                        <button
+                            className="btn-ghost text-sm"
+                            onClick={() => snooze(24 * 60 * 60 * 1000)}
+                            data-testid="snooze-24h-button"
+                        >
+                            24 hours
+                        </button>
+                        <button
+                            className="btn-ghost text-sm"
+                            onClick={snoozeTomorrow}
+                            data-testid="snooze-until-morning-button"
+                        >
+                            Until 9 AM tomorrow
+                        </button>
+                        {muteUntil && (
+                            <button
+                                className="btn-ghost text-sm hover:border-destructive hover:text-destructive"
+                                onClick={clear}
+                                data-testid="snooze-clear-button"
+                            >
+                                Un-snooze
+                            </button>
+                        )}
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground" data-testid="snooze-status">
+                        {muteLabel}
+                    </div>
+                </div>
+
+                {/* Daily quiet hours */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="ticker-label flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> Daily quiet hours
+                        </div>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={qh.enabled}
+                                onChange={(e) => setQh({ ...qh, enabled: e.target.checked })}
+                                data-testid="quiet-hours-enabled"
+                            />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-4">
+                        <div>
+                            <label className="ticker-label block mb-1">Start</label>
+                            <input
+                                type="time"
+                                value={qh.start}
+                                onChange={(e) => setQh({ ...qh, start: e.target.value })}
+                                disabled={!qh.enabled}
+                                className="border border-border focus:border-ink outline-none px-3 py-2 text-sm disabled:bg-surface disabled:text-muted-foreground"
+                                data-testid="quiet-hours-start"
+                            />
+                        </div>
+                        <div>
+                            <label className="ticker-label block mb-1">End</label>
+                            <input
+                                type="time"
+                                value={qh.end}
+                                onChange={(e) => setQh({ ...qh, end: e.target.value })}
+                                disabled={!qh.enabled}
+                                className="border border-border focus:border-ink outline-none px-3 py-2 text-sm disabled:bg-surface disabled:text-muted-foreground"
+                                data-testid="quiet-hours-end"
+                            />
+                        </div>
+                        <button
+                            onClick={saveQh}
+                            className="btn-signal"
+                            data-testid="quiet-hours-save-button"
+                        >
+                            Save schedule
+                        </button>
+                        {savedMsg && (
+                            <span className="text-green-700 text-xs" data-testid="quiet-hours-saved">
+                                {savedMsg}
+                            </span>
+                        )}
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                        {qh.enabled
+                            ? inQuiet
+                                ? `Quiet hours active now (${qh.start}–${qh.end}). Notifications paused.`
+                                : `Quiet hours scheduled daily ${qh.start}–${qh.end}.`
+                            : "Quiet hours are off."}
+                    </div>
+                </div>
             </div>
         </Section>
     );

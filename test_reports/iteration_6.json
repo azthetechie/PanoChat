@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration-5 testing (email, DM unique index, threads, quiet hours). Backend: 13/13 new iter5 tests + 76/76 regression (iter1-4) = 89/89 PASSING. Frontend: Thread panel flow verified end-to-end (parent posted via composer-textarea + send-message-button; hovering message revealed reply-thread-<id>; clicking opened thread-panel; thread-composer-textarea + thread-send-button created a visible thread-bubble-<id>; after thread-close-button, the open-thread-<id> counter on the parent row shows '1 reply · view thread'; reopening re-fetches replies). Quiet-hours section: verified presence of toggle-notifications-button, notifications-status-dot/label, snooze-1h/8h/24h/until-morning buttons, snooze-clear-button, snooze-status, quiet-hours-enabled/start/end/save-button. Clicking snooze-1h flips notifications-status-label to 'enabled · paused by quiet hours or snooze' and shows snooze-clear-button; Un-snooze clears it.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Chat (desktop) composer", "issues": ["Carryover from prior iter: Emergent preview badge (#emergent-badge bottom-right) overlaps the send-message-button hitbox. Real users can click (browser-trusted click); Playwright requires force=True to bypass. Not a functional bug; cosmetic/z-index only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter5.py",
+    "/app/backend/tests/test_iter4.py",
+    "/app/backend/tests/test_unread.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_iter5.xml",
+    "/app/test_reports/pytest/pytest_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "email_service.py: clean — never raises, always returns bool; resend import at module top is fine. Consider validating SENDER_EMAIL domain at startup (if from-domain not Resend-verified, all sends will 403 — currently only discovered at first call).",
+    "db.py ensure_indexes: the non-partial `channels.name` non-unique index (line 34) is now redundant with `uniq_dm_name` for DM lookups but harmless and still useful for channel-name search. OK.",
+    "routes/messages.py list_messages: query `{channel_id, parent_id: null}` relies on `parent_id` field always being present (null for top-level) — post_message always writes `parent_id`, so ✓. Pre-iter5 messages written before this migration would MISS the field and not appear. Confirmed via tests that new messages render; if there is any legacy data without parent_id, it will be filtered out by `null` equality (Mongo treats missing == null in equality match, so legacy docs DO surface — good).",
+    "routes/messages.py flatten-to-root on reply-to-reply: correctly re-fetches parent after snapping payload.parent_id. ✓",
+    "routes/messages.py thread:reply broadcast includes the whole reply doc incl. channel_id — appropriate for FE merging.",
+    "ThreadPanel + MessageComposer: two copies (desktop + mobile-drawer) both mounted — Playwright sees 2 of each data-testid; tests must pick the visible one. Consider adding `data-testid=\"thread-panel-desktop\"` / `thread-panel-mobile\"` (or a single conditionally-mounted panel) to make automation less ambiguous.",
+    "ProfilePage.jsx is now ~500 lines with identity + password + reset-request + notifications + snooze + quiet-hours + recovery — time to split into smaller section components.",
+    "notifications.js quiet-hours check is client-only (localStorage). Server-side notification/email fan-out is untouched — acceptable for this scope (desktop/push is browser-side only).",
+    "models.MessageCreateRequest.parent_id is Optional[str] with no length cap — fine (UUID) but consider a Field with pattern validator."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter5.py (new — 13 tests)"
+  ],
+  "success_rate": {"backend": "100% (89/89: 13 new iter5 + 17 iter4 + 9 iter3-unread + 50 iter1-2)", "frontend": "~95% (threads end-to-end ✓, quiet-hours UI present + snooze cycle ✓, status label transition ✓). Only flake observed was a Playwright send-button overlay retry; no functional defect."},
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 (unchanged). Admin display name remains 'Operations Admin'. No admin-state mutations persisted.",
+  "seed_data_creation": "Backend tests created & cleaned up: users iter5a_*, iter5b_*, iter5mail_*, iter5fallback_*; channels iter5pub-*, iter5other-*. Frontend testing posted a couple of parent + thread-reply messages to #general (e.g. 'iter5p-<ts>', 'thread parent test', 'iter5r-<ts>'). These are not auto-cleaned — harmless noise in #general; may want to delete manually or via admin moderation UI.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter-5 is clean. All 89 backend tests pass. Forgot-password Resend integration verified: backend log shows 'Resend send failed for ...: ... You can only send testing emails to your own email address' followed by '[PASSWORD_RESET] (fallback) link for ...' for unverified recipients — exactly the designed fallback behaviour. Partial unique index `uniq_dm_name` exists on channels.name with partialFilterExpression {type:'dm'}. Threads end-to-end works (REST + WS broadcast 'thread:reply' verified by FE counter incrementing without a page reload). For future iterations: consider splitting ThreadPanel copies into named testids to simplify Playwright selectors.",
+  "rca of the issue": "No blocking issue. Only observation: Playwright scripts must use force=True on the send button due to the Emergent preview badge intercepting pointer events at (x:1770,y:1040) — same overlay issue flagged in iter3/iter4. A real browser click still goes through; only an automation artifact."
+}
