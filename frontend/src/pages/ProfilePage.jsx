@@ -13,18 +13,18 @@ export default function ProfilePage() {
     return (
         <div className="min-h-screen bg-white" data-testid="profile-page">
             <header className="border-b border-ink">
-                <div className="flex items-center justify-between px-6 md:px-10 py-5">
-                    <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between px-4 md:px-10 py-4 md:py-5">
+                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
                         <button
-                            className="p-2 border border-border hover:border-ink"
+                            className="p-2 border border-border hover:border-ink shrink-0"
                             onClick={() => navigate("/")}
                             data-testid="back-to-chat-button"
                         >
                             <ArrowLeft className="w-4 h-4" />
                         </button>
-                        <div>
+                        <div className="min-w-0">
                             <div className="ticker-label text-signal">// YOUR ACCOUNT</div>
-                            <div className="font-heading font-extrabold text-2xl tracking-tight">
+                            <div className="font-heading font-extrabold text-xl md:text-2xl tracking-tight truncate">
                                 Profile & security
                             </div>
                         </div>
@@ -32,7 +32,7 @@ export default function ProfilePage() {
                 </div>
             </header>
 
-            <main className="px-6 md:px-10 py-8 max-w-3xl mx-auto space-y-10">
+            <main className="px-4 md:px-10 py-6 md:py-8 max-w-3xl mx-auto space-y-8 md:space-y-10">
                 <AccountInfo
                     user={user}
                     onSaved={(u) => {

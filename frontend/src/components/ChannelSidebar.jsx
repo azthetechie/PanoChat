@@ -1,7 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Hash, Lock, Archive, Plus, Shield, LogOut, User, UserCog } from "lucide-react";
+import { useBranding, resolveAssetUrl } from "../context/BrandingContext";
+import { Hash, Lock, Archive, Plus, Shield, LogOut, User, UserCog, X } from "lucide-react";
 
 export default function ChannelSidebar({
     channels,
@@ -9,27 +10,53 @@ export default function ChannelSidebar({
     onSelectChannel,
     onCreateChannel,
     canCreate = false,
+    unreadCounts = {},
+    onClose,
+    showCloseButton = false,
 }) {
     const { user, logout } = useAuth();
+    const { branding } = useBranding();
     const navigate = useNavigate();
+    const logoUrl = resolveAssetUrl(branding.logo_url);
 
     return (
         <aside
-            className="w-72 bg-sidebar border-r border-border flex flex-col h-full"
+            className="w-72 max-w-[85vw] bg-sidebar border-r border-border flex flex-col h-full"
             data-testid="channel-sidebar"
         >
-            <div className="p-5 border-b border-border">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-ink flex items-center justify-center">
-                        <div className="w-2.5 h-2.5 bg-signal" />
-                    </div>
-                    <div className="leading-tight">
-                        <div className="font-heading font-extrabold text-sm tracking-tight">
-                            PANORAMA / COMMS
+            <div className="p-5 border-b border-border flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    {logoUrl ? (
+                        <img
+                            src={logoUrl}
+                            alt="logo"
+                            className="w-9 h-9 object-contain border border-border bg-white shrink-0"
+                            data-testid="sidebar-brand-logo"
+                        />
+                    ) : (
+                        <div className="w-9 h-9 bg-ink flex items-center justify-center shrink-0">
+                            <div className="w-2.5 h-2.5 bg-signal" />
                         </div>
-                        <div className="ticker-label text-muted-foreground">Self-hosted</div>
+                    )}
+                    <div className="leading-tight min-w-0">
+                        <div className="font-heading font-extrabold text-sm tracking-tight truncate">
+                            {branding.brand_name || "PANORAMA / COMMS"}
+                        </div>
+                        <div className="ticker-label text-muted-foreground truncate">
+                            {branding.tagline || "Self-hosted"}
+                        </div>
                     </div>
                 </div>
+                {showCloseButton && (
+                    <button
+                        className="p-1.5 border border-border hover:border-ink lg:hidden"
+                        onClick={onClose}
+                        data-testid="sidebar-close-button"
+                        aria-label="Close sidebar"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                )}
             </div>
 
             <div className="flex items-center justify-between px-5 pt-5 pb-2">
@@ -54,6 +81,7 @@ export default function ChannelSidebar({
                 )}
                 {channels.map((c) => {
                     const active = c.id === activeChannelId;
+                    const unread = unreadCounts[c.id] || 0;
                     const Icon = c.archived ? Archive : c.is_private ? Lock : Hash;
                     return (
                         <button
@@ -67,11 +95,19 @@ export default function ChannelSidebar({
                             data-testid={`channel-item-${c.name}`}
                         >
                             <Icon className="w-4 h-4 shrink-0" />
-                            <span className="truncate">{c.name}</span>
-                            {c.archived && (
-                                <span className="ml-auto ticker-label text-muted-foreground">
-                                    archived
+                            <span className={`truncate flex-1 ${unread > 0 && !active ? "text-ink font-bold" : ""}`}>
+                                {c.name}
+                            </span>
+                            {unread > 0 && (
+                                <span
+                                    className="bg-signal text-white text-xs font-bold px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center leading-none"
+                                    data-testid={`unread-badge-${c.name}`}
+                                >
+                                    {unread > 99 ? "99+" : unread}
                                 </span>
+                            )}
+                            {c.archived && unread === 0 && (
+                                <span className="ticker-label text-muted-foreground">archived</span>
                             )}
                         </button>
                     );

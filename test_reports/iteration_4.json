@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration-3 testing (mobile responsive sidebar + per-channel unread badges). Backend: 50/50 regression (iteration-2 suite) + 9/9 new unread tests passed = 59/59 green. Frontend: verified against public preview URL. Mobile (390x844): desktop sidebar correctly hidden (hidden lg:flex), hamburger `open-sidebar-button` visible in header, clicking opens `sidebar-drawer` with `sidebar-close-button`, selecting a channel in the drawer closes it, close button also closes it; admin page — all 4 admin tabs reachable via horizontal scroll; profile page renders without horizontal overflow (scrollW==clientW). Desktop (1920x1080): sidebar remains visible, hamburger hidden — layout unchanged. Unread flow (seeded via backend): with admin viewing `general`, another user posted in `fe-unread`; the sidebar rendered `unread-badge-fe-unread` with text `1` (signal-orange); clicking `channel-item-fe-unread` immediately cleared the badge via POST /api/channels/{id}/read; admin's own message in active channel did NOT produce a badge (confirmed via backend test `test_own_message_does_not_increment_own_unread`). Hidden messages verified to be excluded from unread (backend test). Private channels correctly hidden from non-member unread map; POST /read on private-as-non-member returns 403. Cleanup: ephemeral test users and channels deleted; admin display name restored to 'Operations Admin'; branding still at factory defaults.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Chat page (desktop)", "issues": ["Pre-existing from iter-3: Emergent preview badge (bottom-right) still overlaps the Send button's hitbox. Not a new regression; noted again."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_unread.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_unread.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/unread.py uses string-compare on ISO timestamps (created_at > last_read_at). Works because both sides write `datetime.now(timezone.utc).isoformat()` consistently, but mixing timezones/offset formats later could silently break. Consider storing as BSON datetime (db.messages.created_at is currently ISO string too, so consistent for now).",
+    "GET /api/channels/unread issues N+1 count_documents (one per channel). Fine for small tenants; at 100+ channels consider a single aggregation {$group by channel_id}.",
+    "ChatPage already subscribes to all accessible channels for unread WS — good. mark-read is called on open, focus, and send — matches spec and UI observation.",
+    "ChannelSidebar renders the unread badge unconditionally from prop. Active-channel suppression is done in ChatPage (it zeroes the count when selecting). Both code paths verified.",
+    "AdminPage.jsx is still ~1.2k lines (flagged in iter-3). Unrelated to this iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_unread.py (new)"
+  ],
+  "success_rate": {"backend": "100% (59/59: 50 regression + 9 unread)", "frontend": "100% on verified flows (mobile drawer, admin tabs, profile overflow, desktop regression, unread badge + clear)"},
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 (unchanged; admin display name restored to 'Operations Admin').",
+  "seed_data_creation": "During FE badge verification I created & deleted: channel `fe-unread`, user `fe_unread_user@example.com`. All removed at end of run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration-3 delivered. Backend unread endpoints covered by /app/backend/tests/test_unread.py (9 tests). To verify FE unread badge in future, the cleanest path is to seed state via backend Python (as done here) and THEN log into the UI — because calling /api/auth/login from the admin browser tab overwrites the admin's httpOnly cookies and silently switches the session. Do NOT attempt to login-as-userB via browser fetch() in the same tab as admin. All iteration-1/2/3 regressions green via pytest.",
+  "rca of the issue": "No open issues. The only gotcha worth noting: browser-side `fetch('/api/auth/login')` always picks up Set-Cookie on same-origin regardless of `credentials`, so seeding a second user's session from within the admin's browser tab will overwrite admin's httpOnly cookies. Addressed in this run by seeding via Python requests and verifying the rendered badge on a fresh admin login."
+}

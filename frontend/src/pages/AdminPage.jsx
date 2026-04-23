@@ -31,23 +31,23 @@ export default function AdminPage() {
     return (
         <div className="min-h-screen bg-white" data-testid="admin-page">
             <header className="border-b border-ink">
-                <div className="flex items-center justify-between px-6 md:px-10 py-5">
-                    <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between gap-3 px-4 md:px-10 py-4 md:py-5 flex-wrap">
+                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
                         <button
-                            className="p-2 border border-border hover:border-ink"
+                            className="p-2 border border-border hover:border-ink shrink-0"
                             onClick={() => navigate("/")}
                             data-testid="back-to-chat-button"
                         >
                             <ArrowLeft className="w-4 h-4" />
                         </button>
-                        <div>
+                        <div className="min-w-0">
                             <div className="ticker-label text-signal">// ADMIN CONSOLE</div>
-                            <div className="font-heading font-extrabold text-2xl tracking-tight">
+                            <div className="font-heading font-extrabold text-lg md:text-2xl tracking-tight truncate">
                                 Panorama Comms — Control
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 shrink-0">
                         <div className="text-sm hidden md:block">
                             <div className="font-bold">{user?.name}</div>
                             <div className="text-xs text-muted-foreground">{user?.email}</div>
@@ -64,7 +64,7 @@ export default function AdminPage() {
                         </button>
                     </div>
                 </div>
-                <nav className="flex gap-px bg-border">
+                <nav className="flex gap-px bg-border overflow-x-auto">
                     {[
                         { id: "users", label: "Users", icon: UsersIcon },
                         { id: "channels", label: "Channels", icon: Hash },
@@ -92,7 +92,7 @@ export default function AdminPage() {
                 </nav>
             </header>
 
-            <main className="px-6 md:px-10 py-8">
+            <main className="px-4 md:px-10 py-6 md:py-8">
                 {tab === "users" && <UsersTab />}
                 {tab === "channels" && <ChannelsTab />}
                 {tab === "moderation" && <ModerationTab />}

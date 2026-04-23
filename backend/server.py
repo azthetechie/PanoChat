@@ -20,6 +20,7 @@ from routes.uploads import router as uploads_router  # noqa: E402
 from routes.giphy import router as giphy_router  # noqa: E402
 from routes.websocket import router as websocket_router  # noqa: E402
 from routes.branding import router as branding_router  # noqa: E402
+from routes.unread import router as unread_router  # noqa: E402
 
 
 logging.basicConfig(
@@ -68,6 +69,7 @@ async def health():
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
 api_router.include_router(channels_router)
+api_router.include_router(unread_router)
 api_router.include_router(messages_router)
 api_router.include_router(uploads_router)
 api_router.include_router(giphy_router)

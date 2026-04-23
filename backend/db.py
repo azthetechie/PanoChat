@@ -37,3 +37,4 @@ async def ensure_indexes() -> None:
     await db.login_attempts.create_index("identifier", unique=True)
     await db.password_reset_tokens.create_index("token", unique=True)
     await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
+    await db.channel_reads.create_index([("user_id", 1), ("channel_id", 1)], unique=True)

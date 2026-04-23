@@ -137,6 +137,19 @@ pre {
     background-size: 64px 64px;
 }
 
+@keyframes slide-in-left {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+.animate-in {
+    animation: slide-in-left 180ms ease-out;
+}
+
 .diag-stripe {
     background: repeating-linear-gradient(
         -45deg,
