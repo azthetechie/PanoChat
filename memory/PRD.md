@@ -56,8 +56,9 @@
 - Swiss Brutalist UI (Bricolage Grotesque + Manrope, #FF5A00 signal, rounded-none) ✅
 - Docker: Dockerfile.backend, Dockerfile.frontend (nginx with WS proxy), docker-compose.yml, .env.example ✅
 - README-SELFHOST.md with first-login + production tips ✅
-- Backend tests: **97/97** pytest passing ✅
-- Frontend E2E: comprehensive Playwright coverage (threads, quiet hours, presence) ✅
+- Backend tests: **117/117** pytest passing ✅
+- Frontend E2E: comprehensive Playwright coverage (threads, quiet hours, presence, push) ✅
+- **Web-push notifications (survives tab close)** — auto-generated VAPID keys persisted in `config` collection; Service Worker at `/sw.js` handling `push` + `notificationclick`; `/api/push/{vapid-public-key,subscribe,unsubscribe,test}` endpoints; pushes fire for every new channel/DM message to recipients who are NOT currently connected via WS (online users already get in-app notification) ✅ (Feb 2026)
 
 ### Not implemented (deferred)
 - P1: SMTP/SES email delivery for password reset (currently logs link to backend stdout)
@@ -70,13 +71,12 @@
 
 ## Prioritized backlog
 - **P0** — none outstanding (all critical features ship)
-- **P1** — Email delivery for password reset; unread badges per channel; DMs
-- **P2** — Reactions; threads; audit log; stronger upload validation; password policy
+- **P1** — None outstanding
+- **P2** — Magic-byte MIME validation on uploads; password strength policy; audit log for admin actions
 
 ## Next tasks
-- Wire forgot-password to SMTP (Resend/SendGrid) once email provider chosen
-- Add unread message counters per channel in the sidebar
-- Add 1:1 DMs (new `dm` channel type, auto-created on first message)
+- Optional: capture admin audit log (who hid/unhid/deleted messages, user deactivations)
+- Optional: stricter upload validation (magic-byte MIME sniffing)
 
 ## Deploy
 `cp .env.example .env`, edit secrets, `docker compose up -d --build`. See `README-SELFHOST.md`.
