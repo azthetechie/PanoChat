@@ -243,10 +243,26 @@ async def moderation_list(
     q: dict = {}
     if hidden_only:
         q["hidden"] = True
-    if channel_id:
-        q["channel_id"] = channel_id
     if search:
         q["content"] = {"$regex": search, "$options": "i"}
+
+    # DMs are private 1:1 conversations — exclude them from moderation.
+    # Build the set of non-DM channel ids and restrict messages to them.
+    non_dm_channel_ids = [
+        c["id"]
+        for c in await db.channels.find(
+            {"type": {"$ne": "dm"}}, {"_id": 0, "id": 1}
+        ).to_list(10000)
+    ]
+    if channel_id:
+        # Honor the admin's channel filter, but only if the channel isn't a DM.
+        if channel_id in non_dm_channel_ids:
+            q["channel_id"] = channel_id
+        else:
+            return []
+    else:
+        q["channel_id"] = {"$in": non_dm_channel_ids}
+
     docs = (
         await db.messages.find(q, {"_id": 0})
         .sort("created_at", -1)
