@@ -34,26 +34,29 @@
 ## Status of implementation (Feb 2026)
 ### Completed
 - Auth: login, logout, /me, refresh, register (admin), change-password, forgot/reset-password ✅
+- **Password-reset email via Resend** (falls back to stdout log if unconfigured or Resend API returns error) ✅
 - Brute-force lockout working behind ingress (X-Forwarded-For + email-only counter) ✅
 - Users CRUD (admin) with self-protection (can't delete/demote/deactivate self) ✅
 - Channels CRUD (admin), members add/remove, archive ✅
-- **1:1 Direct Messages** — auto-created on first message; DMs excluded from channel list; separate sidebar section with last-message preview + unread ✅
+- 1:1 Direct Messages — auto-created on first message; DMs excluded from channel list; separate sidebar section; **partial unique index** on `channels.name` where `type='dm'` (race-safe) ✅
 - Messages: create/list/delete, hide/unhide (admin), moderation search ✅
-- **@Mentions** — autocomplete popover in composer; `mentions_me_badge` + highlighted row + inline `@Name` styling ✅
-- **Reactions** — per-message emoji toggles (8-emoji quick picker); chips below message; realtime broadcast to all subscribers ✅
-- **Desktop notifications** — browser Notifications API, opt-in from Profile, ping only for DMs + @mentions when the tab is unfocused ✅
+- **Message threads** — `POST /api/messages/{id}/react`, thread panel (desktop side + mobile drawer), denorm `thread_reply_count` + `thread_last_reply_at` on parent, WS `thread:reply` broadcast ✅
+- @Mentions — autocomplete popover in composer; highlighted row + inline `@Name` styling; mentions-me badge ✅
+- Reactions — per-message emoji toggles; chips below message; realtime broadcast ✅
+- Desktop notifications (DMs + @mentions only; respects quiet hours + snooze) ✅
+- **Mute / quiet hours** — client-side: snooze 1h/8h/24h/until 9 AM; daily quiet-hours window ✅
 - File uploads (PNG/JPG/GIF/WebP, 15MB cap) + static serving ✅
 - Giphy search + trending ✅
-- WebSocket real-time broadcasts (message:new, :hidden, :unhidden, :deleted, :reactions) ✅
-- Profile page (name, avatar, password change, reset-link request, notifications toggle) ✅
+- WebSocket real-time broadcasts (message:new, :hidden, :unhidden, :deleted, :reactions, thread:reply) ✅
+- Profile page (name, avatar, password change, reset-link request, notifications toggle, snooze, quiet hours) ✅
 - Admin Branding tab (logo + hero image + copy + live preview) ✅
 - Unread counters per channel + DM (sidebar badge; auto-mark-read on open/focus/send) ✅
 - Mobile-friendly layout (off-canvas sidebar drawer + hamburger; admin tabs horizontal-scroll; responsive headers) ✅
 - Swiss Brutalist UI (Bricolage Grotesque + Manrope, #FF5A00 signal, rounded-none) ✅
 - Docker: Dockerfile.backend, Dockerfile.frontend (nginx with WS proxy), docker-compose.yml, .env.example ✅
 - README-SELFHOST.md with first-login + production tips ✅
-- Backend tests: 76/76 pytest passing ✅
-- Frontend E2E: comprehensive Playwright coverage ✅
+- Backend tests: **89/89** pytest passing ✅
+- Frontend E2E: comprehensive Playwright coverage including thread end-to-end + quiet-hours UI ✅
 
 ### Not implemented (deferred)
 - P1: SMTP/SES email delivery for password reset (currently logs link to backend stdout)
