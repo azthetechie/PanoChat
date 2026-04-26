@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"endpoint":{"$numberInt":"1"}},"name":"endpoint_1","unique":true},{"v":{"$numberInt":"2"},"key":{"user_id":{"$numberInt":"1"}},"name":"user_id_1"}],"uuid":"57ccc06be75848d7bb0cfb59437ea255","collectionName":"push_subscriptions","type":"collection"}
