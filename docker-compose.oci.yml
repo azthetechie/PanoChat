@@ -37,14 +37,27 @@ services:
             - frontend
             - backend
 
+    mongo:
+        image: mongo:7
+        restart: unless-stopped
+        command: ["mongod", "--bind_ip_all"]
+        volumes:
+            - mongo_data:/data/db
+        # Mongo is only reachable on the internal docker network. Do NOT
+        # publish ports to the host unless you also enable auth.
+        expose:
+            - "27017"
+
     backend:
         build:
             context: .
             dockerfile: Dockerfile.backend
         restart: unless-stopped
+        depends_on:
+            - mongo
         environment:
-            # --- Database ---
-            MONGO_URL: "${MONGO_URL}"
+            # --- Database (in-compose Mongo) ---
+            MONGO_URL: "${MONGO_URL:-mongodb://mongo:27017}"
             DB_NAME: "${DB_NAME:-panorama_comms}"
 
             # --- Auth ---
@@ -54,8 +67,6 @@ services:
             ADMIN_NAME: "${ADMIN_NAME:-Operations Admin}"
 
             # --- CORS / cookies ---
-            # Same-origin deploy through Caddy → leave blank to let cookies use
-            # samesite=lax automatically (works over HTTP too).
             FRONTEND_URL: "${FRONTEND_URL:-}"
             CORS_ORIGINS: "${CORS_ORIGINS:-*}"
             COOKIE_SAMESITE: "${COOKIE_SAMESITE:-lax}"
@@ -88,15 +99,8 @@ services:
         expose:
             - "80"
 
-    # Uncomment to run MongoDB inside compose (small / dev only):
-    # mongo:
-    #     image: mongo:7
-    #     restart: unless-stopped
-    #     volumes:
-    #         - mongo_data:/data/db
-
 volumes:
+    mongo_data:
     uploads_data:
     caddy_data:
     caddy_config:
-    # mongo_data:

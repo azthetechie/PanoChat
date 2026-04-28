@@ -65,7 +65,7 @@ nano .env
 
 | Variable | Required | Notes |
 |---|---|---|
-| `MONGO_URL` | ✅ | Your existing MongoDB connection string |
+| `MONGO_URL` | ✅ | Default `mongodb://mongo:27017` works (Mongo runs in compose). Set to a different URI only if you want an external Mongo. |
 | `DB_NAME` | ✅ | e.g. `panorama_comms` |
 | `JWT_SECRET` | ✅ | `openssl rand -hex 32` |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | ✅ | First admin (created on first boot) |
@@ -143,11 +143,12 @@ docker compose -f docker-compose.oci.yml down
 ```
 
 **Persistent data lives in Docker volumes:**
+- `mongo_data` — MongoDB database
 - `uploads_data` — uploaded images and GIF picks
 - `caddy_data`, `caddy_config` — TLS certs, cached state
 
-Back them up with `docker run --rm -v uploads_data:/data -v $(pwd):/backup
-alpine tar czf /backup/uploads.tgz /data` periodically.
+Back them up with `docker run --rm -v mongo_data:/data -v $(pwd):/backup
+alpine tar czf /backup/mongo.tgz /data` periodically.
 
 ## 7 · Troubleshooting
 
@@ -188,11 +189,11 @@ Browser
   │ HTTPS :443
   ▼
 Caddy (auto-TLS)
-  ├─ /api/*  →  backend  (FastAPI :8001)
+  ├─ /api/*  →  backend  (FastAPI :8001)  ──► mongo (:27017)
   └─ /*      →  frontend (nginx :80, static React)
                    │
                    └─ /api/* (relative) → handled by Caddy ↑
 ```
 
 All containers run on a private Docker network. Only Caddy is exposed to the
-public internet.
+public internet. Mongo is internal-only.
