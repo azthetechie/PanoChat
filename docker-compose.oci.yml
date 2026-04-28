@@ -1,0 +1,102 @@
+# docker-compose.oci.yml — Oracle Cloud / Linux VM deployment
+#
+# Usage:
+#   1. Copy .env.oci.example to .env and edit the values (admin email, JWT secret,
+#      Mongo connection string, Giphy key, etc.).
+#   2. Run:  docker compose -f docker-compose.oci.yml --env-file .env up -d --build
+#   3. (Optional) Configure DNS to point CADDY_HOST → your VM's public IP.
+#
+# What's included:
+#   - Caddy reverse proxy on :80 + :443 with automatic TLS (Let's Encrypt for
+#     domains, self-signed for IP-only deploys).
+#   - Frontend nginx container (static SPA).
+#   - Backend FastAPI container.
+#   - You bring your own MongoDB (set MONGO_URL in .env). Comment in the `mongo`
+#     service below if you'd rather run Mongo inside compose.
+
+version: "3.9"
+
+services:
+    caddy:
+        image: caddy:2-alpine
+        restart: unless-stopped
+        ports:
+            - "80:80"
+            - "443:443"
+        environment:
+            CADDY_HOST: "${CADDY_HOST:-:443}"
+            # When CADDY_HOST is a real domain, set CADDY_TLS_DIRECTIVE to
+            # `tls ${CADDY_EMAIL}` for Let's Encrypt. For IP-only deploys leave
+            # it as `tls internal` (default).
+            CADDY_TLS_DIRECTIVE: "${CADDY_TLS_DIRECTIVE:-tls internal}"
+        volumes:
+            - ./Caddyfile:/etc/caddy/Caddyfile:ro
+            - caddy_data:/data
+            - caddy_config:/config
+        depends_on:
+            - frontend
+            - backend
+
+    backend:
+        build:
+            context: .
+            dockerfile: Dockerfile.backend
+        restart: unless-stopped
+        environment:
+            # --- Database ---
+            MONGO_URL: "${MONGO_URL}"
+            DB_NAME: "${DB_NAME:-panorama_comms}"
+
+            # --- Auth ---
+            JWT_SECRET: "${JWT_SECRET}"
+            ADMIN_EMAIL: "${ADMIN_EMAIL:-operations@panoramacoaches.com.au}"
+            ADMIN_PASSWORD: "${ADMIN_PASSWORD:-Pano3666}"
+            ADMIN_NAME: "${ADMIN_NAME:-Operations Admin}"
+
+            # --- CORS / cookies ---
+            # Same-origin deploy through Caddy → leave blank to let cookies use
+            # samesite=lax automatically (works over HTTP too).
+            FRONTEND_URL: "${FRONTEND_URL:-}"
+            CORS_ORIGINS: "${CORS_ORIGINS:-*}"
+            COOKIE_SAMESITE: "${COOKIE_SAMESITE:-lax}"
+            COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+
+            # --- Integrations ---
+            GIPHY_API_KEY: "${GIPHY_API_KEY:-}"
+            RESEND_API_KEY: "${RESEND_API_KEY:-}"
+            SENDER_EMAIL: "${SENDER_EMAIL:-onboarding@resend.dev}"
+            EMAIL_FROM_NAME: "${EMAIL_FROM_NAME:-Panorama Comms}"
+
+            # --- Uploads ---
+            UPLOAD_DIR: "/app/backend/uploads"
+            MAX_UPLOAD_MB: "15"
+        volumes:
+            - uploads_data:/app/backend/uploads
+        expose:
+            - "8001"
+
+    frontend:
+        build:
+            context: .
+            dockerfile: Dockerfile.frontend
+            args:
+                # Same-origin deploy: blank so the browser uses relative /api URLs.
+                REACT_APP_BACKEND_URL: ""
+        restart: unless-stopped
+        depends_on:
+            - backend
+        expose:
+            - "80"
+
+    # Uncomment to run MongoDB inside compose (small / dev only):
+    # mongo:
+    #     image: mongo:7
+    #     restart: unless-stopped
+    #     volumes:
+    #         - mongo_data:/data/db
+
+volumes:
+    uploads_data:
+    caddy_data:
+    caddy_config:
+    # mongo_data:

@@ -52,13 +52,39 @@ def decode_token(token: str) -> dict:
     return jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
 
 
+def _cookie_samesite_secure() -> tuple[str, bool]:
+    """Pick cookie attributes that work for the current deployment.
+
+    - If COOKIE_SAMESITE is explicitly set, use it.
+    - Else if FRONTEND_URL is HTTPS or empty, default to samesite=none / secure=True
+      (cross-site safe, requires HTTPS).
+    - Else (plain HTTP self-host), use samesite=lax / secure=False so the
+      browser will actually persist the cookie.
+    """
+    explicit = os.environ.get("COOKIE_SAMESITE", "").strip().lower()
+    if explicit in ("none", "lax", "strict"):
+        secure_env = os.environ.get("COOKIE_SECURE", "").strip().lower()
+        if secure_env in ("1", "true", "yes"):
+            return explicit, True
+        if secure_env in ("0", "false", "no"):
+            return explicit, False
+        return explicit, explicit == "none"
+
+    frontend_url = os.environ.get("FRONTEND_URL", "").strip().lower()
+    if frontend_url.startswith("https://") or not frontend_url:
+        return "none", True
+    # http://... => relax so cookies actually stick
+    return "lax", False
+
+
 def set_auth_cookies(response, access_token: str, refresh_token: str) -> None:
+    samesite, secure = _cookie_samesite_secure()
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=secure,
+        samesite=samesite,
         max_age=ACCESS_TOKEN_MINUTES * 60,
         path="/",
     )
@@ -66,8 +92,8 @@ def set_auth_cookies(response, access_token: str, refresh_token: str) -> None:
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=secure,
+        samesite=samesite,
         max_age=REFRESH_TOKEN_DAYS * 24 * 60 * 60,
         path="/",
     )

@@ -1,0 +1,53 @@
+# Caddyfile — Panorama Comms reverse proxy with auto-TLS.
+#
+# Usage:
+#   - For DOMAIN-based deploy (auto Let's Encrypt):
+#       docker compose -f docker-compose.oci.yml up -d
+#       Set CADDY_HOST=chat.example.com and CADDY_EMAIL=admin@example.com in .env
+#
+#   - For IP-only deploy (self-signed cert, browser warning once):
+#       Leave CADDY_HOST blank (or set to your.public.ip.address)
+#       The :443 block below will use Caddy's internal CA for HTTPS.
+#
+# Caddy automatically falls back to internal CA when the host doesn't resolve
+# publicly or you explicitly set `tls internal`.
+
+{$CADDY_HOST::443} {
+    {$CADDY_TLS_DIRECTIVE:tls internal}
+
+    encode zstd gzip
+    request_body {
+        max_size 20MB
+    }
+
+    # WebSocket upgrade for /api/ws
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade    websocket
+    }
+
+    # Backend API (incl. WebSocket)
+    handle /api/* {
+        reverse_proxy backend:8001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle @websockets {
+        reverse_proxy backend:8001
+    }
+
+    # Everything else → static frontend (nginx)
+    handle {
+        reverse_proxy frontend:80
+    }
+}
+
+# Optional: HTTP → HTTPS redirect on :80 (Caddy enables it automatically when
+# a public domain is configured, but kept here for IP-only deploys too).
+:80 {
+    redir https://{host}{uri} permanent
+}
