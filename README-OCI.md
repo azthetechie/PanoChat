@@ -18,11 +18,20 @@ backend and the React frontend. You bring your own MongoDB.
    Bump to `VM.Standard.A1.Flex` (1 OCPU, 6 GB) for production.
 4. Networking: pick the default VCN. **Add a public IP** (ephemeral is fine).
 5. SSH: paste your public key.
-6. **After the instance boots**, edit the **Subnet → Security List → Add Ingress Rules**:
-   - TCP **80**  (Caddy HTTP, redirects to HTTPS)
+5. **After the instance boots**, edit the **Subnet → Security List → Add Ingress Rules**:
+   - TCP **80**  (Let's Encrypt HTTP-01 challenge + HTTP→HTTPS redirect)
    - TCP **443** (HTTPS)
 
-   And **inside the VM**, open the same ports in iptables / firewalld:
+   And **inside the VM**, open the same ports in the OS firewall.
+
+   **Oracle Linux / RHEL (firewalld):**
+   ```bash
+   sudo firewall-cmd --permanent --add-service=http
+   sudo firewall-cmd --permanent --add-service=https
+   sudo firewall-cmd --reload
+   ```
+
+   **Ubuntu / Debian (iptables-persistent):**
    ```bash
    sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80  -j ACCEPT
    sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
@@ -69,25 +78,28 @@ nano .env
 | `DB_NAME` | ✅ | e.g. `panorama_comms` |
 | `JWT_SECRET` | ✅ | `openssl rand -hex 32` |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | ✅ | First admin (created on first boot) |
-| `CADDY_HOST` | ⚠️ | A real domain → see §4a; IP only → see §4b |
-| `CADDY_TLS_DIRECTIVE` | ⚠️ | `tls user@example.com` for LE; `tls internal` for self-signed |
-| `FRONTEND_URL` | ⚠️ | `https://chat.mycompany.com` if domain; blank if IP only |
+| `CADDY_HOST` | ✅ | Real domain (Let's Encrypt) → `chat.mycompany.com`. IP-only → `:443` (also uncomment `tls internal` in Caddyfile). |
+| `ACME_EMAIL` | recommended | Real email for Let's Encrypt cert renewal alerts. |
+| `FRONTEND_URL` | ✅ | `https://chat.mycompany.com` for domain; blank for IP only. |
 | `GIPHY_API_KEY` | optional | https://developers.giphy.com |
 | `RESEND_API_KEY` | optional | https://resend.com (password-reset emails) |
 
 ## 4a · TLS with a real domain (recommended)
 
 1. Create a DNS **A record**: `chat.mycompany.com → <your-vm-ip>` and wait for
-   propagation (use `dig chat.mycompany.com` to confirm).
-2. In `.env`:
+   propagation (use `dig chat.mycompany.com` or `nslookup chat.mycompany.com`).
+2. Verify TCP **80 AND 443** are open in OCI Security List + the VM firewall (§1).
+3. In `.env`:
    ```
    CADDY_HOST=chat.mycompany.com
-   CADDY_TLS_DIRECTIVE=tls admin@mycompany.com
+   ACME_EMAIL=admin@mycompany.com
    FRONTEND_URL=https://chat.mycompany.com
    COOKIE_SAMESITE=lax
    COOKIE_SECURE=true
    ```
-3. Caddy will fetch a Let's Encrypt cert automatically on first boot.
+4. Caddy will fetch a Let's Encrypt cert automatically on first boot. Watch
+   the logs: `docker compose -f docker-compose.oci.yml logs -f caddy` — you
+   should see `certificate obtained successfully` from issuer `acme-v02`.
 
 ## 4b · TLS with IP only (no domain)
 
@@ -95,18 +107,19 @@ Let's Encrypt **cannot** issue certs for raw IPs, so we use Caddy's built-in CA
 to sign a self-signed cert. Browsers will show a one-time warning the first
 time each user visits — they can click through ("Advanced → Proceed").
 
-1. In `.env`:
+1. Edit `Caddyfile` — uncomment the `tls internal` line inside the site block.
+2. In `.env`:
    ```
    CADDY_HOST=:443
-   CADDY_TLS_DIRECTIVE=tls internal
+   ACME_EMAIL=admin@example.com
    FRONTEND_URL=
    COOKIE_SAMESITE=lax
    COOKIE_SECURE=true
    ```
-2. Open `https://<your-vm-ip>` in the browser → accept the warning once.
+3. Open `https://<your-vm-ip>` in the browser → accept the warning once.
 
-> ⚠️  If you want zero browser warnings without a domain, get a free domain
-> from Cloudflare or DuckDNS and use §4a — it's the cleanest path.
+> ⚠️  If you want zero browser warnings without a real domain, get a free
+> subdomain from DuckDNS or Cloudflare and use §4a — it's the cleanest path.
 
 ## 5 · Launch
 

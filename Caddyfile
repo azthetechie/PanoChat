@@ -1,53 +1,34 @@
 # Caddyfile — Panorama Comms reverse proxy with auto-TLS.
 #
-# Usage:
-#   - For DOMAIN-based deploy (auto Let's Encrypt):
-#       docker compose -f docker-compose.oci.yml up -d
-#       Set CADDY_HOST=chat.example.com and CADDY_EMAIL=admin@example.com in .env
-#
-#   - For IP-only deploy (self-signed cert, browser warning once):
-#       Leave CADDY_HOST blank (or set to your.public.ip.address)
-#       The :443 block below will use Caddy's internal CA for HTTPS.
-#
-# Caddy automatically falls back to internal CA when the host doesn't resolve
-# publicly or you explicitly set `tls internal`.
+# Set CADDY_HOST in .env:
+#   • Real domain (recommended): CADDY_HOST=chat.example.com
+#       → Caddy auto-fetches a Let's Encrypt cert (no browser warnings).
+#       → Also set ACME_EMAIL to a real email for cert renewal alerts.
+#       → Port 80 MUST be open (Let's Encrypt HTTP-01 challenge).
+#   • IP / no domain: CADDY_HOST=:443 + uncomment `tls internal` below
+#       → Self-signed cert (browser warning once per device).
 
-{$CADDY_HOST::443} {
-    {$CADDY_TLS_DIRECTIVE:tls internal}
-
-    encode zstd gzip
-    request_body {
-        max_size 20MB
-    }
-
-    # WebSocket upgrade for /api/ws
-    @websockets {
-        header Connection *Upgrade*
-        header Upgrade    websocket
-    }
-
-    # Backend API (incl. WebSocket)
-    handle /api/* {
-        reverse_proxy backend:8001 {
-            header_up Host {host}
-            header_up X-Real-IP {remote}
-            header_up X-Forwarded-For {remote}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    handle @websockets {
-        reverse_proxy backend:8001
-    }
-
-    # Everything else → static frontend (nginx)
-    handle {
-        reverse_proxy frontend:80
-    }
+{
+	email {$ACME_EMAIL:admin@example.com}
 }
 
-# Optional: HTTP → HTTPS redirect on :80 (Caddy enables it automatically when
-# a public domain is configured, but kept here for IP-only deploys too).
-:80 {
-    redir https://{host}{uri} permanent
+{$CADDY_HOST::443} {
+	# Uncomment for IP-only / self-signed deploys:
+	# tls internal
+
+	encode zstd gzip
+
+	request_body {
+		max_size 20MB
+	}
+
+	# Backend API (FastAPI) — Caddy auto-handles WebSocket upgrade.
+	handle /api/* {
+		reverse_proxy backend:8001
+	}
+
+	# Static SPA (nginx)
+	handle {
+		reverse_proxy frontend:80
+	}
 }
