@@ -416,7 +416,11 @@ export default function ChatPage() {
                                     </div>
                                     <div className="text-xs text-muted-foreground truncate hidden md:block">
                                         {isDmActive
-                                            ? `Direct message · ${activeChannel.other_user_email || ""}`
+                                            ? `Direct message${
+                                                  user?.role === "admin" && activeChannel.other_user_email
+                                                      ? ` · ${activeChannel.other_user_email}`
+                                                      : ""
+                                              }`
                                             : activeChannel.description || "No description"}
                                     </div>
                                 </div>

@@ -1,0 +1,54 @@
+{
+  "summary": "Iteration 13 (privacy fix) frontend testing complete. Verified email visibility is correctly gated by admin role across Directory, NewDmDialog, MessageComposer mention popover, and ChatPage DM header. All testids migrated from email-based to id-based. Both admin (sees emails) and non-admin (does NOT see emails) views verified end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/users still returns the email field to non-admin users (verified via fetch from jane). Frontend hides it, but a curious user could read it via DevTools/Network tab. Backend was explicitly out-of-scope for this iteration per request, but consider scrubbing email from /api/users response for non-admin callers in a follow-up.",
+    "MessageComposer.jsx line 67 uses u.email.toLowerCase().startsWith(q) without a null-guard; if a user record ever lacks email this throws. Low risk since backend always populates email.",
+    "NewDmDialog.jsx line 47 uses u.email.toLowerCase() without null-guard, same risk."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100% (all iter13 acceptance criteria pass)"},
+  "test_credentials": "Admin: operations@panoramacoaches.com.au / Pano3666 — Non-admin (seeded in this iteration via /api/auth/register): jane@panoramacoaches.com.au / Pass1234 (id 294eb483-1abf-4d8c-b1e1-34b8f308e62b)",
+  "seed_data_creation": "Created non-admin test user jane@panoramacoaches.com.au via POST /api/auth/register using admin's session.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Three users now exist: Operations Admin (admin), Aaron F (existing user), Jane Test (newly seeded non-admin). For privacy/role-gated UI testing, log in as jane@panoramacoaches.com.au / Pass1234. The Emergent 'Made with Emergent' badge in bottom-right intercepts clicks on the send-message-button at full-window viewports — pre-existing environmental artifact, not a code bug. Use force=True or scroll to bypass.",
+  "verification_results": {
+    "admin": {
+      "directory_placeholder": "Search by name or email…",
+      "email_visible_in_card": true,
+      "card_testid_uses_id": true,
+      "email_based_testids_present": false,
+      "search_by_email_filters": true,
+      "newdm_placeholder_includes_email": true,
+      "newdm_row_shows_email": true,
+      "mention_popover_shows_email": true,
+      "dm_header_format": "Direct message · jane@panoramacoaches.com.au"
+    },
+    "non_admin": {
+      "directory_placeholder": "Search by name…",
+      "email_testids_in_cards": 0,
+      "email_text_in_grid": false,
+      "search_by_admin_email_returns_empty": true,
+      "search_by_name_works": true,
+      "newdm_placeholder_hides_email": true,
+      "newdm_modal_leaks_email": false,
+      "newdm_email_search_returns_zero": true,
+      "mention_popover_leaks_email": false,
+      "mention_by_name_works": true,
+      "dm_header_text": "Operations Admin\\nDirect message",
+      "dm_header_leaks_email": false
+    }
+  },
+  "rca of the issue": "N/A — testing only. All iteration 13 acceptance criteria are met."
+}
