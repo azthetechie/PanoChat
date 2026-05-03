@@ -23,7 +23,7 @@ services:
             - "443:443"
         environment:
             CADDY_HOST: "${CADDY_HOST:-:443}"
-            ACME_EMAIL: "${ACME_EMAIL:-admin@example.com}"
+            ACME_EMAIL: "${ACME_EMAIL:-operations@panoramacoaches.com.au}"
         volumes:
             - ./Caddyfile:/etc/caddy/Caddyfile:ro
             - caddy_data:/data
