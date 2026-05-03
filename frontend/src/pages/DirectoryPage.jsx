@@ -17,6 +17,7 @@ export default function DirectoryPage() {
     const { user } = useAuth();
     const { isOnline } = usePresence();
     const navigate = useNavigate();
+    const isAdmin = user?.role === "admin";
 
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -53,10 +54,10 @@ export default function DirectoryPage() {
             })
             .filter((u) => {
                 if (!needle) return true;
-                return (
-                    (u.name || "").toLowerCase().includes(needle) ||
-                    (u.email || "").toLowerCase().includes(needle)
-                );
+                if ((u.name || "").toLowerCase().includes(needle)) return true;
+                // Only admins can search by email (regular users don't see emails).
+                if (isAdmin && (u.email || "").toLowerCase().includes(needle)) return true;
+                return false;
             })
             .sort((a, b) => {
                 // online first, then admins, then name
@@ -66,9 +67,9 @@ export default function DirectoryPage() {
                 const ar = a.role === "admin" ? 0 : 1;
                 const br = b.role === "admin" ? 0 : 1;
                 if (ar !== br) return ar - br;
-                return (a.name || a.email).localeCompare(b.name || b.email);
+                return (a.name || a.email || "").localeCompare(b.name || b.email || "");
             });
-    }, [users, q, filter, isOnline]);
+    }, [users, q, filter, isOnline, isAdmin]);
 
     const onlineCount = useMemo(
         () => users.filter((u) => isOnline(u.id)).length,
@@ -120,7 +121,7 @@ export default function DirectoryPage() {
                         <input
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            placeholder="Search by name or email…"
+                            placeholder={isAdmin ? "Search by name or email…" : "Search by name…"}
                             className="w-full border border-border focus:border-ink outline-none pl-10 pr-3 py-2.5 text-sm"
                             data-testid="directory-search-input"
                         />
@@ -179,6 +180,7 @@ export default function DirectoryPage() {
                                 online={isOnline(u.id)}
                                 starting={starting === u.id}
                                 onStart={() => startDm(u)}
+                                showEmail={isAdmin}
                             />
                         ))}
                     </div>
@@ -188,13 +190,13 @@ export default function DirectoryPage() {
     );
 }
 
-function PersonCard({ person, isMe, online, starting, onStart }) {
+function PersonCard({ person, isMe, online, starting, onStart, showEmail }) {
     const avatarUrl = resolveAssetUrl(person.avatar_url);
-    const initials = (person.name || person.email).slice(0, 2).toUpperCase();
+    const initials = (person.name || person.email || "??").slice(0, 2).toUpperCase();
     return (
         <div
             className="border border-border hover:border-ink transition-colors bg-white p-4 flex flex-col gap-3"
-            data-testid={`directory-card-${person.email}`}
+            data-testid={`directory-card-${person.id}`}
         >
             <div className="flex items-start gap-3">
                 <div className="relative shrink-0">
@@ -213,7 +215,7 @@ function PersonCard({ person, isMe, online, starting, onStart }) {
                         className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-2 border-white ${
                             online ? "bg-green-600" : "bg-muted-foreground"
                         }`}
-                        data-testid={`directory-presence-${person.email}`}
+                        data-testid={`directory-presence-${person.id}`}
                         title={online ? "Active now" : "Offline"}
                     />
                 </div>
@@ -221,7 +223,7 @@ function PersonCard({ person, isMe, online, starting, onStart }) {
                     <div className="flex items-center gap-2 flex-wrap">
                         <div
                             className="font-heading font-extrabold tracking-tight truncate"
-                            data-testid={`directory-name-${person.email}`}
+                            data-testid={`directory-name-${person.id}`}
                         >
                             {person.name || "—"}
                         </div>
@@ -236,7 +238,14 @@ function PersonCard({ person, isMe, online, starting, onStart }) {
                             </span>
                         )}
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">{person.email}</div>
+                    {showEmail && (
+                        <div
+                            className="text-xs text-muted-foreground truncate"
+                            data-testid={`directory-email-${person.id}`}
+                        >
+                            {person.email}
+                        </div>
+                    )}
                     <div className="mt-1 text-[11px] ticker-label text-muted-foreground">
                         {online ? "● active now" : "○ offline"}
                     </div>
@@ -247,7 +256,7 @@ function PersonCard({ person, isMe, online, starting, onStart }) {
                     onClick={onStart}
                     disabled={starting}
                     className={isMe ? "btn-ghost text-xs" : "btn-signal text-xs flex items-center gap-2"}
-                    data-testid={isMe ? `directory-edit-profile-${person.email}` : `directory-start-dm-${person.email}`}
+                    data-testid={isMe ? `directory-edit-profile-${person.id}` : `directory-start-dm-${person.id}`}
                 >
                     {isMe ? (
                         "Edit my profile"
