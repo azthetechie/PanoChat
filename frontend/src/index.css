@@ -27,7 +27,7 @@ pre {
         --card-foreground: 0 0% 4%;
         --popover: 0 0% 100%;
         --popover-foreground: 0 0% 4%;
-        --primary: 18 100% 50%; /* signal orange */
+        --primary: 223 83% 28%; /* signal navy #0c2e82 */
         --primary-foreground: 0 0% 100%;
         --secondary: 0 0% 96%;
         --secondary-foreground: 0 0% 4%;
@@ -39,7 +39,7 @@ pre {
         --destructive-foreground: 0 0% 100%;
         --border: 0 0% 89%;
         --input: 0 0% 89%;
-        --ring: 18 100% 50%;
+        --ring: 223 83% 28%; /* signal navy */
         --radius: 0px;
     }
 }
@@ -52,7 +52,7 @@ pre {
         @apply bg-background text-foreground;
     }
     ::selection {
-        background: #ff5a00;
+        background: #0c2e82;
         color: #ffffff;
     }
 }
@@ -86,16 +86,16 @@ pre {
 }
 
 .btn-signal {
-    background: #ff5a00;
+    background: #0c2e82;
     color: #ffffff;
     font-weight: 700;
     padding: 0.75rem 1.25rem;
     transition: background-color 150ms ease-in-out;
-    border: 1px solid #ff5a00;
+    border: 1px solid #0c2e82;
 }
 .btn-signal:hover {
-    background: #e04f00;
-    border-color: #e04f00;
+    background: #091d55;
+    border-color: #091d55;
 }
 .btn-signal:disabled {
     opacity: 0.5;

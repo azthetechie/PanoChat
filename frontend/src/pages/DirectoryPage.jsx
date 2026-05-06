@@ -228,7 +228,7 @@ function PersonCard({ person, isMe, online, starting, onStart, showEmail }) {
                             {person.name || "—"}
                         </div>
                         {person.role === "admin" && (
-                            <span className="inline-flex items-center gap-1 bg-signal text-white text-[10px] uppercase tracking-wider px-1.5 py-0.5 font-heading font-bold">
+                            <span className="inline-flex items-center gap-1 bg-brand-accent text-white text-[10px] uppercase tracking-wider px-1.5 py-0.5 font-heading font-bold">
                                 <Shield className="w-3 h-3" /> Admin
                             </span>
                         )}

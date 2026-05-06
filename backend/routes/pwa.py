@@ -63,7 +63,7 @@ async def webmanifest(request: Request):
         "display": "standalone",
         "orientation": "any",
         "background_color": "#000000",
-        "theme_color": "#FF5A00",
+        "theme_color": "#0c2e82",
         "icons": icons,
         "categories": ["business", "productivity", "social"],
     }

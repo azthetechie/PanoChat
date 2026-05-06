@@ -117,7 +117,7 @@ export default function ChannelSidebar({
                             </span>
                             {unread > 0 && (
                                 <span
-                                    className="bg-signal text-white text-xs font-bold px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center leading-none"
+                                    className="bg-brand-accent text-white text-xs font-bold px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center leading-none"
                                     data-testid={`unread-badge-${c.name}`}
                                 >
                                     {unread > 99 ? "99+" : unread}
@@ -178,8 +178,8 @@ export default function ChannelSidebar({
                             </span>
                             {unread > 0 && (
                                 <span
-                                    className="bg-signal text-white text-xs font-bold px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center leading-none"
-                                    data-testid={`dm-unread-${d.other_user_email}`}
+                                    className="bg-brand-accent text-white text-xs font-bold px-1.5 min-w-[1.25rem] h-5 flex items-center justify-center leading-none"
+                                    data-testid={`dm-unread-${d.other_user_id}`}
                                 >
                                     {unread > 99 ? "99+" : unread}
                                 </span>
