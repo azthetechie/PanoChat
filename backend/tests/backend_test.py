@@ -558,13 +558,23 @@ class TestWebSocket:
         token = self._login_local()
         chan_id = public_channel["id"]
 
+        async def _wait_for(ws, type_check, timeout=5):
+            """Drain frames until type_check(evt) is True or timeout."""
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                evt = json.loads(await asyncio.wait_for(ws.recv(), timeout=deadline - time.time()))
+                if type_check(evt):
+                    return evt
+            raise AssertionError(f"timed out waiting; last frame: {evt}")
+
         async def run():
             uri = f"ws://localhost:8001/api/ws?token={token}"
             async with websockets.connect(uri) as ws:
-                hello = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                # Hello may be preceded by presence:update broadcasts — drain.
+                hello = await _wait_for(ws, lambda e: e.get("type") == "hello")
                 assert hello.get("type") == "hello"
                 await ws.send(json.dumps({"type": "subscribe", "channel_id": chan_id}))
-                ack = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                ack = await _wait_for(ws, lambda e: e.get("type") == "subscribed")
                 assert ack.get("type") == "subscribed"
 
                 # Trigger a message via REST and wait for broadcast
