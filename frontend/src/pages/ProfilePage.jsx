@@ -206,8 +206,15 @@ function WebPushSection() {
         setMsg("");
         setError("");
         try {
-            await sendTestPush();
-            setMsg("Test notification sent. Close this tab first to see the OS notification.");
+            const res = await sendTestPush();
+            if (res?.ok) {
+                setMsg(
+                    "Test push delivered to the OS. Close this tab to confirm — it should appear from the system tray."
+                );
+            } else {
+                const firstErr = res?.results?.find((r) => r?.error)?.error || "unknown failure";
+                setError(`Push delivery FAILED: ${firstErr}`);
+            }
         } catch (err) {
             setError(getErrorMessage(err));
         } finally {

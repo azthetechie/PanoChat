@@ -82,4 +82,4 @@ class TestIndexHtml:
         html = r.text.lower()
         assert 'rel="manifest"' in html and "/api/manifest.webmanifest" in html
         assert 'rel="apple-touch-icon"' in html
-        assert 'name="theme-color"' in html and "#ff5a00" in html
+        assert 'name="theme-color"' in html and "#0c2e82" in html

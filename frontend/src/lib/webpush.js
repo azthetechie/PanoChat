@@ -107,5 +107,6 @@ export async function disablePush() {
 }
 
 export async function sendTestPush() {
-    await api.post("/push/test");
+    const { data } = await api.post("/push/test");
+    return data;
 }

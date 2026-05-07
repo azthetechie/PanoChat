@@ -62,8 +62,9 @@ async def unsubscribe(payload: PushUnsubscribeRequest, user: dict = Depends(get_
 
 @router.post("/test")
 async def push_test(user: dict = Depends(get_current_user)):
-    """Send a test push to the current user (useful for Profile page UI)."""
-    await push_service.send_to_user(
+    """Send a test push to the current user. Returns per-subscription delivery
+    results so the frontend can display the actual failure (instead of just OK)."""
+    results = await push_service.send_to_user(
         user["id"],
         {
             "title": "Panorama Comms",
@@ -71,4 +72,5 @@ async def push_test(user: dict = Depends(get_current_user)):
             "url": "/",
         },
     )
-    return {"ok": True}
+    any_ok = any(r.get("ok") for r in results)
+    return {"ok": any_ok, "results": results}
