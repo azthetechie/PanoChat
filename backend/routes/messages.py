@@ -175,6 +175,17 @@ async def _fire_push(channel: dict, message: dict, sender: dict) -> None:
     if not offline:
         return
 
+    # Filter out users with quiet hours / muted / push disabled.
+    from routes.notification_prefs import push_allowed_for_user
+
+    user_docs = await db.users.find(
+        {"id": {"$in": offline}},
+        {"_id": 0, "id": 1, "notification_prefs": 1},
+    ).to_list(10000)
+    allowed = [u["id"] for u in user_docs if push_allowed_for_user(u)]
+    if not allowed:
+        return
+
     title = (
         sender.get("name") or sender.get("email") or "New message"
         if is_dm
@@ -194,7 +205,7 @@ async def _fire_push(channel: dict, message: dict, sender: dict) -> None:
         "message_id": message["id"],
         "tag": f"ch:{channel['id']}",
     }
-    await push_service.send_to_users(offline, payload)
+    await push_service.send_to_users(allowed, payload)
 
 
 @router.post("/{message_id}/react", response_model=MessagePublic)
