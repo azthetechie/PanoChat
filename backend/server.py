@@ -25,6 +25,7 @@ from routes.dms import router as dms_router  # noqa: E402
 from routes.presence import router as presence_router  # noqa: E402
 from routes.push import router as push_router  # noqa: E402
 from routes.notification_prefs import router as notif_prefs_router  # noqa: E402
+from routes.qr import router as qr_router  # noqa: E402
 from routes.pwa import router as pwa_router  # noqa: E402
 
 
@@ -83,6 +84,7 @@ api_router.include_router(branding_router)
 api_router.include_router(presence_router)
 api_router.include_router(push_router)
 api_router.include_router(notif_prefs_router)
+api_router.include_router(qr_router)
 api_router.include_router(pwa_router)  # /api/manifest.webmanifest
 api_router.include_router(websocket_router)  # /api/ws
 

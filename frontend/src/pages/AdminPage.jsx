@@ -16,6 +16,7 @@ import {
     Hash,
     MessageSquare,
     Palette,
+    QrCode,
     Upload as UploadIcon,
 } from "lucide-react";
 
@@ -70,6 +71,7 @@ export default function AdminPage() {
                         { id: "channels", label: "Channels", icon: Hash },
                         { id: "moderation", label: "Moderation", icon: MessageSquare },
                         { id: "branding", label: "Branding", icon: Palette },
+                        { id: "onboarding", label: "Onboarding QR", icon: QrCode },
                     ].map((t) => {
                         const Icon = t.icon;
                         const active = t.id === tab;
@@ -97,6 +99,7 @@ export default function AdminPage() {
                 {tab === "channels" && <ChannelsTab />}
                 {tab === "moderation" && <ModerationTab />}
                 {tab === "branding" && <BrandingTab />}
+                {tab === "onboarding" && <OnboardingTab />}
             </main>
         </div>
     );
@@ -1222,3 +1225,136 @@ function BrandImageField({ label, url, onUpload, onClear, inputId, big = false }
         </div>
     );
 }
+
+
+// ----- Onboarding QR -----
+function OnboardingTab() {
+    const { branding } = useBranding();
+    const brandName = branding?.brand_name || "Panorama Comms";
+    const tagline = branding?.tagline || "Self-hosted business chat";
+
+    const defaultUrl =
+        typeof window !== "undefined" ? window.location.origin : "https://panoramachat.fitzell.au";
+    const [url, setUrl] = useState(defaultUrl);
+    const [size, setSize] = useState(12);
+
+    const apiBase = (process.env.REACT_APP_BACKEND_URL || "") + "/api";
+    const qrSrc = `${apiBase}/qr?url=${encodeURIComponent(url)}&size=${size}&border=2`;
+
+    const print = () => {
+        window.print();
+    };
+
+    const downloadPng = () => {
+        const a = document.createElement("a");
+        a.href = qrSrc;
+        a.download = "panorama-comms-qr.png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    };
+
+    return (
+        <section data-testid="onboarding-tab" className="space-y-6">
+            <div className="flex items-start justify-between gap-4 flex-wrap print:hidden">
+                <div>
+                    <div className="ticker-label text-signal mb-1">// SCAN-TO-INSTALL</div>
+                    <h2 className="font-heading font-extrabold text-2xl tracking-tight">
+                        Onboarding QR poster
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                        Print this QR code and stick it on the office wall, the staff handbook, or
+                        the welcome pack. New hires scan it on their phone, the browser opens the
+                        chat app, then prompts them to add it to their home screen as an installed
+                        app.
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                    <div>
+                        <label className="ticker-label block mb-1">Target URL</label>
+                        <input
+                            value={url}
+                            onChange={(e) => setUrl(e.target.value)}
+                            className="border border-border focus:border-ink outline-none px-3 py-2 text-sm w-64 sm:w-80"
+                            data-testid="onboarding-qr-url"
+                        />
+                    </div>
+                    <div>
+                        <label className="ticker-label block mb-1">Module size</label>
+                        <input
+                            type="number"
+                            min={4}
+                            max={40}
+                            value={size}
+                            onChange={(e) => setSize(parseInt(e.target.value || "12", 10))}
+                            className="border border-border focus:border-ink outline-none px-3 py-2 text-sm w-24"
+                            data-testid="onboarding-qr-size"
+                        />
+                    </div>
+                    <button
+                        onClick={downloadPng}
+                        className="btn-ghost text-sm"
+                        data-testid="onboarding-qr-download"
+                    >
+                        Download PNG
+                    </button>
+                    <button
+                        onClick={print}
+                        className="btn-signal text-sm"
+                        data-testid="onboarding-qr-print"
+                    >
+                        Print poster
+                    </button>
+                </div>
+            </div>
+
+            {/* Print-friendly poster */}
+            <div
+                className="border border-ink bg-white p-8 md:p-12 print:border-0 print:p-0 print:bg-white"
+                data-testid="onboarding-qr-poster"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-8 md:gap-12 items-center">
+                    <div className="space-y-3">
+                        <div className="ticker-label text-signal">// JOIN THE TEAM CHAT</div>
+                        <h1 className="font-heading font-black text-4xl md:text-6xl tracking-tighter leading-none">
+                            {brandName}
+                        </h1>
+                        <p className="text-base md:text-lg text-muted-foreground max-w-md">
+                            {tagline}
+                        </p>
+                        <ol className="text-sm md:text-base list-decimal pl-5 space-y-1.5 mt-4 max-w-md">
+                            <li>Scan the code with your phone camera.</li>
+                            <li>
+                                Tap the link to open <span className="font-bold">{url.replace(/^https?:\/\//, "")}</span>.
+                            </li>
+                            <li>
+                                Tap <span className="font-bold">Install app</span> (Chrome) or{" "}
+                                <span className="font-bold">Share → Add to Home Screen</span> (iOS Safari).
+                            </li>
+                            <li>Sign in with the credentials your admin gave you.</li>
+                        </ol>
+                    </div>
+                    <div className="flex items-center justify-center">
+                        <img
+                            src={qrSrc}
+                            alt="Onboarding QR code"
+                            className="border border-border bg-white"
+                            data-testid="onboarding-qr-image"
+                            style={{ width: "min(60vmin, 360px)", height: "auto" }}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <style>{`
+                @media print {
+                    body { background: white !important; }
+                    nav, header, .print\\:hidden { display: none !important; }
+                    main { padding: 0 !important; }
+                    @page { margin: 12mm; }
+                }
+            `}</style>
+        </section>
+    );
+}
+
