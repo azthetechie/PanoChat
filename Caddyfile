@@ -1,0 +1,34 @@
+# Caddyfile — Panorama Comms reverse proxy with auto-TLS.
+#
+# Set CADDY_HOST in .env:
+#   • Real domain (recommended): CADDY_HOST=chat.example.com
+#       → Caddy auto-fetches a Let's Encrypt cert (no browser warnings).
+#       → Also set ACME_EMAIL to a real email for cert renewal alerts.
+#       → Port 80 MUST be open (Let's Encrypt HTTP-01 challenge).
+#   • IP / no domain: CADDY_HOST=:443 + uncomment `tls internal` below
+#       → Self-signed cert (browser warning once per device).
+
+{
+	email {$ACME_EMAIL:admin@example.com}
+}
+
+{$CADDY_HOST::443} {
+	# Uncomment for IP-only / self-signed deploys:
+	# tls internal
+
+	encode zstd gzip
+
+	request_body {
+		max_size 20MB
+	}
+
+	# Backend API (FastAPI) — Caddy auto-handles WebSocket upgrade.
+	handle /api/* {
+		reverse_proxy backend:8001
+	}
+
+	# Static SPA (nginx)
+	handle {
+		reverse_proxy frontend:80
+	}
+}

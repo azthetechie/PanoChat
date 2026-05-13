@@ -206,8 +206,15 @@ function WebPushSection() {
         setMsg("");
         setError("");
         try {
-            await sendTestPush();
-            setMsg("Test notification sent. Close this tab first to see the OS notification.");
+            const res = await sendTestPush();
+            if (res?.ok) {
+                setMsg(
+                    "Test push delivered to the OS. Close this tab to confirm — it should appear from the system tray."
+                );
+            } else {
+                const firstErr = res?.results?.find((r) => r?.error)?.error || "unknown failure";
+                setError(`Push delivery FAILED: ${firstErr}`);
+            }
         } catch (err) {
             setError(getErrorMessage(err));
         } finally {
@@ -275,6 +282,49 @@ function QuietHoursSection() {
     const [muteUntil, setMuteUntilState] = useState(getMuteUntil());
     const [qh, setQh] = useState(getQuietHours());
     const [savedMsg, setSavedMsg] = useState("");
+    const [savedSnooze, setSavedSnooze] = useState("");
+
+    // Hydrate from backend on mount so it stays in sync across devices
+    useEffect(() => {
+        let ignore = false;
+        (async () => {
+            try {
+                const { data } = await api.get("/me/notifications");
+                if (ignore || !data) return;
+                if (data.quiet_hours) {
+                    const local = getQuietHours();
+                    const merged = { ...local, ...data.quiet_hours };
+                    setQuietHours(merged);
+                    setQh(merged);
+                }
+                if (data.mute_until) {
+                    setMuteUntil(data.mute_until);
+                    setMuteUntilState(getMuteUntil());
+                }
+            } catch {
+                /* ignore — first-time users have no prefs yet */
+            }
+        })();
+        return () => {
+            ignore = true;
+        };
+    }, []);
+
+    const tz =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+    const _putPrefs = async (overrides = {}) => {
+        try {
+            await api.put("/me/notifications", {
+                quiet_hours: { ...qh, timezone: tz },
+                mute_until: getMuteUntil()?.toISOString() || null,
+                push_enabled: true,
+                ...overrides,
+            });
+        } catch {
+            /* ignore — server-side sync best-effort, local fallback always works */
+        }
+    };
 
     useEffect(() => {
         const t = setInterval(() => {
@@ -286,20 +336,33 @@ function QuietHoursSection() {
 
     const snooze = (ms) => {
         snoozeFor(ms);
-        setMuteUntilState(getMuteUntil());
+        const next = getMuteUntil();
+        setMuteUntilState(next);
+        _putPrefs({ mute_until: next?.toISOString() || null });
+        setSavedSnooze("Synced.");
+        setTimeout(() => setSavedSnooze(""), 1500);
     };
     const snoozeTomorrow = () => {
         snoozeUntilTomorrowMorning();
-        setMuteUntilState(getMuteUntil());
+        const next = getMuteUntil();
+        setMuteUntilState(next);
+        _putPrefs({ mute_until: next?.toISOString() || null });
+        setSavedSnooze("Synced.");
+        setTimeout(() => setSavedSnooze(""), 1500);
     };
     const clear = () => {
         setMuteUntil(null);
         setMuteUntilState(null);
+        _putPrefs({ mute_until: null });
     };
-    const saveQh = () => {
+    const saveQh = async () => {
         setQuietHours(qh);
-        setSavedMsg("Saved.");
-        setTimeout(() => setSavedMsg(""), 1500);
+        await _putPrefs({
+            quiet_hours: { ...qh, timezone: tz },
+            mute_until: getMuteUntil()?.toISOString() || null,
+        });
+        setSavedMsg("Saved (also pauses push).");
+        setTimeout(() => setSavedMsg(""), 2500);
     };
 
     const muteLabel = muteUntil
@@ -310,6 +373,9 @@ function QuietHoursSection() {
     return (
         <Section title="Mute & quiet hours" kicker="// DO NOT DISTURB" icon={Moon}>
             <div className="space-y-6">
+                <p className="text-xs text-muted-foreground -mt-2">
+                    Affects desktop notifications <span className="font-bold">and push notifications</span> (even when this tab is closed). Synced to all your devices.
+                </p>
                 {/* One-off snooze */}
                 <div>
                     <div className="ticker-label mb-2">Snooze notifications</div>
@@ -354,6 +420,11 @@ function QuietHoursSection() {
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground" data-testid="snooze-status">
                         {muteLabel}
+                        {savedSnooze && (
+                            <span className="ml-2 text-green-700" data-testid="snooze-saved">
+                                {savedSnooze}
+                            </span>
+                        )}
                     </div>
                 </div>
 

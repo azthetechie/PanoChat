@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { ImagePlus, Smile, SendHorizontal, X, Paperclip, AtSign } from "lucide-react";
 import { api, getErrorMessage } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import GifPicker from "./GifPicker";
 import PresenceDot from "./PresenceDot";
 
@@ -12,6 +13,8 @@ export default function MessageComposer({
     parentId = null,
     compact = false,
 }) {
+    const { user } = useAuth();
+    const isAdmin = user?.role === "admin";
     const [content, setContent] = useState("");
     const [attachments, setAttachments] = useState([]);
     const [uploading, setUploading] = useState(false);
@@ -60,10 +63,11 @@ export default function MessageComposer({
             .filter(
                 (u) =>
                     (u.name || "").toLowerCase().includes(q) ||
-                    u.email.toLowerCase().startsWith(q)
+                    // Only admins can match by email
+                    (isAdmin && u.email.toLowerCase().startsWith(q))
             )
             .slice(0, 6);
-    }, [mentionQuery, allUsers]);
+    }, [mentionQuery, allUsers, isAdmin]);
 
     const onContentChange = (e) => {
         const v = e.target.value;
@@ -190,7 +194,7 @@ export default function MessageComposer({
                             className={`w-full flex items-center gap-3 p-2 text-left hover:bg-surface ${
                                 idx === 0 ? "bg-surface" : ""
                             }`}
-                            data-testid={`mention-option-${u.email}`}
+                            data-testid={`mention-option-${u.id}`}
                         >
                             <div className="relative shrink-0">
                                 <div className="w-7 h-7 bg-ink text-white flex items-center justify-center font-heading font-bold text-xs">
@@ -202,9 +206,11 @@ export default function MessageComposer({
                             </div>
                             <div className="min-w-0">
                                 <div className="text-sm font-bold truncate">{u.name}</div>
-                                <div className="text-xs text-muted-foreground truncate">
-                                    {u.email}
-                                </div>
+                                {isAdmin && (
+                                    <div className="text-xs text-muted-foreground truncate">
+                                        {u.email}
+                                    </div>
+                                )}
                             </div>
                         </button>
                     ))}

@@ -39,7 +39,7 @@ class TestManifest:
             assert key in data, f"missing key: {key}"
         assert data["start_url"] == "/"
         assert data["display"] == "standalone"
-        assert data["theme_color"] == "#FF5A00"
+        assert data["theme_color"] == "#0c2e82"
         assert isinstance(data["icons"], list) and len(data["icons"]) >= 2
         sizes = {i.get("sizes") for i in data["icons"]}
         assert "192x192" in sizes
@@ -82,4 +82,4 @@ class TestIndexHtml:
         html = r.text.lower()
         assert 'rel="manifest"' in html and "/api/manifest.webmanifest" in html
         assert 'rel="apple-touch-icon"' in html
-        assert 'name="theme-color"' in html and "#ff5a00" in html
+        assert 'name="theme-color"' in html and "#0c2e82" in html

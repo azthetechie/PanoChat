@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { X, MessageSquarePlus } from "lucide-react";
 import { api, getErrorMessage } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import PresenceDot from "./PresenceDot";
 
 export default function NewDmDialog({ onClose, onOpened }) {
+    const { user } = useAuth();
+    const isAdmin = user?.role === "admin";
     const [users, setUsers] = useState([]);
     const [q, setQ] = useState("");
     const [loading, setLoading] = useState(true);
@@ -36,11 +39,14 @@ export default function NewDmDialog({ onClose, onOpened }) {
         }
     };
 
-    const filtered = users.filter(
-        (u) =>
-            (u.name || "").toLowerCase().includes(q.toLowerCase()) ||
-            u.email.toLowerCase().includes(q.toLowerCase())
-    );
+    const filtered = users.filter((u) => {
+        const needle = q.toLowerCase();
+        if (!needle) return true;
+        if ((u.name || "").toLowerCase().includes(needle)) return true;
+        // Only admins can search by email (regular users don't see emails).
+        if (isAdmin && u.email.toLowerCase().includes(needle)) return true;
+        return false;
+    });
 
     return (
         <div
@@ -72,7 +78,7 @@ export default function NewDmDialog({ onClose, onOpened }) {
                         autoFocus
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
-                        placeholder="Search teammates…"
+                        placeholder={isAdmin ? "Search teammates by name or email…" : "Search teammates by name…"}
                         className="w-full border border-border focus:border-ink outline-none px-3 py-2 text-sm"
                         data-testid="new-dm-search"
                     />
@@ -98,7 +104,7 @@ export default function NewDmDialog({ onClose, onOpened }) {
                             key={u.id}
                             onClick={() => start(u)}
                             className="w-full flex items-center justify-between gap-3 p-3 border-b border-border hover:bg-surface text-left"
-                            data-testid={`new-dm-user-${u.email}`}
+                            data-testid={`new-dm-user-${u.id}`}
                         >
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className="relative shrink-0">
@@ -111,9 +117,11 @@ export default function NewDmDialog({ onClose, onOpened }) {
                                 </div>
                                 <div className="min-w-0">
                                     <div className="text-sm font-bold truncate">{u.name}</div>
-                                    <div className="text-xs text-muted-foreground truncate">
-                                        {u.email}
-                                    </div>
+                                    {isAdmin && (
+                                        <div className="text-xs text-muted-foreground truncate">
+                                            {u.email}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <MessageSquarePlus className="w-4 h-4 text-signal" />

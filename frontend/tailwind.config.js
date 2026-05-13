@@ -49,9 +49,13 @@ module.exports = {
                 input: "hsl(var(--input))",
                 ring: "hsl(var(--ring))",
                 signal: {
-                    DEFAULT: "#FF5A00",
-                    hover: "#E04F00",
-                    active: "#C24400",
+                    DEFAULT: "#0c2e82",
+                    hover: "#091d55",
+                    active: "#061447",
+                },
+                "brand-accent": {
+                    DEFAULT: "#770031",
+                    hover: "#5a0025",
                 },
                 ink: "#0A0A0A",
                 paper: "#FFFFFF",

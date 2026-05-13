@@ -119,7 +119,10 @@ class TestPushTestEndpoint:
         )
         r = admin_session.post(f"{BASE}/api/push/test", timeout=15)
         assert r.status_code == 200, r.text
-        assert r.json() == {"ok": True}
+        body = r.json()
+        # No active subs → ok=False with descriptive results
+        assert body["ok"] is False
+        assert any("No active subscriptions" in (x.get("error") or "") for x in body["results"])
 
     def test_with_fake_sub_does_not_500(self, admin_session):
         """With a fake (unreachable) subscription registered, /push/test must not raise 500.
